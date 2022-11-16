@@ -1,0 +1,9 @@
+[package]
+name = "vmtest"
+authors = ["Daniel Xu <dxu@dxuuu.xyz>"]
+description = "Helps run your tests in virtual machines"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]

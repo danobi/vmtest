@@ -1,0 +1,27 @@
+[vmtest]
+
+# This target specifies a kernel but no image. This results in current
+# running rootfs being shared with the VM over a 9p FS.
+#
+# Note this does require the kernel to have 9p FS support.
+[[target]]
+name = "5.4 kernel"             # Name of target
+kernel = "./path/to/bzimage"    # Path to bzImage/vmlinux/vmlinuz. Path is relative to vmtest.toml.
+command = "./scripts/test.sh"   # Command to run inside VM. Path is relative to vmtest.toml.
+
+# A target with an image but no kernel assumes the image is bootable.
+# If an image is provided, the entire directory tree rooted from vmtest.toml
+# will be copied into the VM at /mnt/vmtest.
+#
+# Note this requires the image to start qemu-ga at boot.
+[[target]]
+name = "avx kernel"
+image = "./path/to/image.qcow2" # Path to bootable image. Path is relative to vmtest.toml
+command = "./scripts/test.sh"
+
+# If an image is provided with a kernel, the provided kernel is used
+[[target]]
+name = "avx kernel with swapped kernel"
+image = "./path/to/image.qcow2"
+kernel = "./path/to/vmlinux"
+command = "./scripts/test.sh"

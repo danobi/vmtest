@@ -8,6 +8,8 @@ use std::time;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
+use itertools::Itertools;
+use log::{debug, log_enabled, Level};
 use qapi::{qmp, Qmp};
 use rand::Rng;
 
@@ -117,6 +119,15 @@ impl Qemu {
             c.arg("-kernel").arg(kernel);
         }
 
+        if log_enabled!(Level::Debug) {
+            let args = c.get_args().map(|a| a.to_string_lossy()).join(" ");
+            debug!(
+                "qemu invocation: {} {}",
+                c.get_program().to_string_lossy(),
+                args
+            );
+        }
+
         Self {
             process: c,
             qga_sock,
@@ -160,16 +171,15 @@ impl Qemu {
             .context("Failed waiting for QEMU to be ready")?;
 
         // Connect to QMP socket
-        let qmp_stream =
-            UnixStream::connect(&self.qmp_sock).context("Failed to connect QMP socket")?;
+        let qmp_stream = UnixStream::connect(&self.qmp_sock).context("Failed to connect QMP")?;
         let mut qmp = Qmp::from_stream(&qmp_stream);
         let qmp_info = qmp.handshake().context("QMP handshake failed")?;
-        println!("QMP info: {:#?}", qmp_info);
+        debug!("QMP info: {:#?}", qmp_info);
 
         // Quit and wait for QEMU to exit
         let _ = qmp.execute(&qmp::quit {}).context("Failed to QMP quit")?;
         let status = child.wait().context("Failed to wait on child")?;
-        println!("Exit code: {}", status.code().unwrap_or(-1));
+        debug!("Exit code: {:?}", status.code());
 
         Ok(())
     }

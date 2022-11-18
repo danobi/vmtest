@@ -9,6 +9,9 @@ license = "Apache-2.0"
 [dependencies]
 anyhow = "1.0.66"
 clap = { version = "4.0.26", features = ["derive"] }
+env_logger = "0.9.3"
+itertools = "0.10.5"
+log = "0.4.17"
 qapi = { version = "0.10.0", features = ["qmp", "qga"] }
 rand = "0.8.5"
 serde = "1.0.147"

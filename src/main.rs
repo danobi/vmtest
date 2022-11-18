@@ -18,6 +18,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    env_logger::init();
     let contents = fs::read_to_string(&args.config).context("Failed to read config file")?;
     let config = toml::from_str(&contents).context("Failed to parse config")?;
     let cwd = env::current_dir().context("Failed to get current working directory")?;

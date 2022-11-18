@@ -10,12 +10,12 @@ pub struct Target {
     pub name: String,
     /// Path to image to test against.
     ///
-    /// * The path is relative to `Vmtest.toml`.
+    /// * The path is relative to `vmtest.toml`.
     /// * The image must be bootable.
     pub image: Option<PathBuf>,
     /// Path to kernel image to test against.
     ///
-    /// * The path is relative to `Vmtest.toml`.
+    /// * The path is relative to `vmtest.toml`.
     /// * `vmlinux`, `vmlinuz`, and `bzImage` formats are accepted.
     pub kernel: Option<PathBuf>,
     /// Command to run inside virtual machine.

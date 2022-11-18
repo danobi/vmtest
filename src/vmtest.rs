@@ -50,7 +50,7 @@ impl Vmtest {
     /// Construct a new instance.
     ///
     /// `path` is the working directory all relative config paths should be
-    /// based off of. This is typically the directory the `Vmtest.toml` is
+    /// based off of. This is typically the directory the `vmtest.toml` is
     /// found in.
     pub fn new<T: AsRef<Path>>(path: T, config: Config) -> Result<Self> {
         validate_config(&config).context("Invalid config")?;

@@ -11,7 +11,7 @@ use vmtest::vmtest;
 #[clap(version)]
 struct Args {
     /// Path to config file
-    #[clap(long, default_value = "Vmtest.toml")]
+    #[clap(long, default_value = "vmtest.toml")]
     config: PathBuf,
 }
 
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     let config = toml::from_str(&contents).context("Failed to parse config")?;
     let cwd = env::current_dir().context("Failed to get current working directory")?;
     let vmtest = vmtest::Vmtest::new(cwd, config)?;
-    vmtest.run().context("Vmtest run failed")?;
+    vmtest.run().context("vmtest run failed")?;
 
     Ok(())
 }

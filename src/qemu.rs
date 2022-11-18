@@ -2,7 +2,7 @@ use std::env::consts::ARCH;
 use std::ffi::OsString;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time;
 use std::time::Duration;
@@ -109,6 +109,8 @@ impl Qemu {
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
         c.args(QEMU_DEFAULT_ARGS)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
             .args(drive_args(image, 1));

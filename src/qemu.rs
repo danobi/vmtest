@@ -166,7 +166,25 @@ impl Qemu {
 
     /// Run the target to completion
     pub fn run(mut self) -> Result<()> {
-        let mut child = self.process.spawn().context("Failed to spawn process")?;
+        let child = self.process.spawn().context("Failed to spawn process")?;
+        // Ensure child is cleaned up even if we bail early
+        let mut child = scopeguard::guard(child, |mut c| {
+            match c.try_wait() {
+                Ok(Some(e)) => debug!("Child already exited with {e}"),
+                Ok(None) => {
+                    // We must have bailed before we sent `quit` over QMP
+                    debug!("Child still alive, killing");
+                    if let Err(e) = c.kill() {
+                        debug!("Failed to kill child: {}", e);
+                    }
+                    if let Err(e) = c.wait() {
+                        debug!("Failed to wait on killed child: {}", e);
+                    }
+                }
+                Err(e) => debug!("Failed to wait on child: {}", e),
+            }
+        });
+
         self.wait_for_qemu(None)
             .context("Failed waiting for QEMU to be ready")?;
 

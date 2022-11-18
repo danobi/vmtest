@@ -267,7 +267,7 @@ impl Qemu {
 
         let cmd = &parts[0];
         let args: Vec<&str> = parts
-            .get(0..)
+            .get(1..)
             .unwrap_or(&[])
             .iter()
             .map(|s| -> &str { s.as_ref() })

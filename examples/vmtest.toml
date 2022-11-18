@@ -1,5 +1,3 @@
-[vmtest]
-
 # This target specifies a kernel but no image. This results in current
 # running rootfs being shared with the VM over a 9p FS.
 #

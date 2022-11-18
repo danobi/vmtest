@@ -87,8 +87,12 @@ impl Vmtest {
 
             if let Some(image) = resolved_image {
                 let qemu = Qemu::new(&image, resolved_kernel.as_deref(), &target.command);
-                qemu.run()
+                let result = qemu
+                    .run()
                     .with_context(|| format!("Failed to run target '{}'", target.name))?;
+
+                println!("Target '{}' results:", target.name);
+                println!("{}", result);
             } else {
                 bail!("Target '{}': image is currently required", target.name)
             }

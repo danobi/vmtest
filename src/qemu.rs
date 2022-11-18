@@ -1,5 +1,7 @@
 use std::env::consts::ARCH;
 use std::ffi::OsString;
+use std::fmt;
+use std::io::{BufRead, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -9,7 +11,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
-use log::{debug, log_enabled, Level};
+use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qga, Qmp};
 use rand::Rng;
 
@@ -18,7 +20,21 @@ pub struct Qemu {
     process: Command,
     qga_sock: PathBuf,
     qmp_sock: PathBuf,
-    _command: String,
+    command: String,
+}
+
+/// This struct contains the result of the qemu command execution.
+///
+/// The command could have succeeded or failed _inside_ the VM --
+/// it is up for caller to interpret the contents of this struct.
+#[derive(Default)]
+pub struct QemuResult {
+    /// Return code of command
+    pub exitcode: i64,
+    /// Stdout of command
+    pub stdout: String,
+    /// Stderr of command
+    pub stderr: String,
 }
 
 const QEMU_DEFAULT_ARGS: &[&str] = &[
@@ -99,6 +115,82 @@ fn machine_protocol_args(sock: &Path) -> Vec<OsString> {
     args
 }
 
+/// Run a process inside the VM and wait until completion
+///
+/// NB: this is not a shell, so you won't get shell features unless you run a
+/// `/bin/bash -c '...'`
+fn run_in_vm<S>(qga: &mut Qga<S>, cmd: &str, args: &[&str]) -> Result<QemuResult>
+where
+    S: Write + BufRead,
+{
+    let qga_args = qga::guest_exec {
+        path: cmd.to_string(),
+        arg: Some(args.iter().map(|a| a.to_string()).collect()),
+        capture_output: Some(true),
+        input_data: None,
+        env: None,
+    };
+    let handle = qga.execute(&qga_args).context("Failed to QGA guest-exec")?;
+    let pid = handle.pid;
+
+    let now = time::Instant::now();
+    let mut period = Duration::from_millis(100);
+    let status = loop {
+        let status = qga
+            .execute(&qga::guest_exec_status { pid })
+            .context("Failed to QGA guest-exec-status")?;
+
+        if status.exited {
+            break status;
+        }
+
+        // Exponential backoff up to 5s so we don't poll too frequently
+        if period <= (Duration::from_secs(5) / 2) {
+            period *= 2;
+        }
+
+        let elapsed = now.elapsed();
+        if now.elapsed() >= Duration::from_secs(30) {
+            warn!(
+                "'{cmd}' is taking a while to execute inside the VM ({}ms)",
+                elapsed.as_secs()
+            );
+        }
+
+        debug!("PID={pid} not finished; sleeping {}s", period.as_millis());
+        thread::sleep(period);
+    };
+
+    let mut result = QemuResult::default();
+    if let Some(code) = status.exitcode {
+        result.exitcode = code;
+    } else {
+        warn!("Command '{cmd}' exitcode unknown");
+    }
+    if let Some(stdout) = status.out_data {
+        result.stdout = String::from_utf8_lossy(&stdout).to_string();
+    } else {
+        debug!("Command '{cmd}' stdout missing")
+    }
+    if let Some(t) = status.out_truncated {
+        if t {
+            warn!("'{cmd}' stdout truncated");
+        }
+    }
+    if let Some(stderr) = status.err_data {
+        result.stderr = String::from_utf8_lossy(&stderr).to_string();
+    } else {
+        debug!("Command '{cmd}' stderr missing")
+    }
+    if let Some(t) = status.err_truncated {
+        if t {
+            warn!("'{cmd}' stderr truncated");
+        }
+    }
+
+    Ok(result)
+}
+
 impl Qemu {
     /// Construct a QEMU instance backing a vmtest target.
     ///
@@ -132,7 +224,7 @@ impl Qemu {
             process: c,
             qga_sock,
             qmp_sock,
-            _command: command.to_string(),
+            command: command.to_string(),
         }
     }
 
@@ -164,8 +256,33 @@ impl Qemu {
         bail!("QEMU sockets did not appear in time");
     }
 
+    /// Run this target's command inside the VM
+    fn run_command<S>(&self, qga: &mut Qga<S>) -> Result<QemuResult>
+    where
+        S: Write + BufRead,
+    {
+        let parts = shell_words::split(&self.command).context("Failed to shell split command")?;
+        // This is checked during config validation
+        assert!(!parts.is_empty());
+
+        let cmd = &parts[0];
+        let args: Vec<&str> = parts
+            .get(0..)
+            .unwrap_or(&[])
+            .iter()
+            .map(|s| -> &str { s.as_ref() })
+            .collect();
+
+        run_in_vm(qga, cmd, &args)
+    }
+
     /// Run the target to completion
-    pub fn run(mut self) -> Result<()> {
+    ///
+    /// [`QemuResult`] is returned if command was successfully executed inside
+    /// the VM (saying nothing about if the command was semantically successful).
+    /// In other words, if the test harness was _able_ to execute the command,
+    /// we return `QemuResult`. If the harness failed, we return error.
+    pub fn run(mut self) -> Result<QemuResult> {
         let child = self.process.spawn().context("Failed to spawn process")?;
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, |mut c| {
@@ -205,10 +322,25 @@ impl Qemu {
             .context("Failed to get QGA info")?;
         debug!("QGA info: {:#?}", qga_info);
 
+        // Run command in VM
+        let qemu_result = self
+            .run_command(&mut qga)
+            .context("Failed to run command")?;
+
         // Quit and wait for QEMU to exit
         let _ = qmp.execute(&qmp::quit {}).context("Failed to QMP quit")?;
         let status = child.wait().context("Failed to wait on child")?;
         debug!("Exit code: {:?}", status.code());
+
+        Ok(qemu_result)
+    }
+}
+
+impl fmt::Display for QemuResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "\tExit code: {}", self.exitcode)?;
+        writeln!(f, "\tStdout:\n {}", self.stdout)?;
+        writeln!(f, "\tStderr:\n {}", self.stderr)?;
 
         Ok(())
     }

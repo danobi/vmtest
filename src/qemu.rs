@@ -25,8 +25,6 @@ const QEMU_DEFAULT_ARGS: &[&str] = &[
     "-nodefaults",
     "-display",
     "none",
-    "-serial",
-    "mon:stdio",
     "-enable-kvm",
     "-m",
     "4G", // TODO(dxu): make configurable

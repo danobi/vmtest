@@ -2,5 +2,5 @@
 
 Currently under development.
 
-This README will be replace with details and instructions once
+This README will be replaced with details and instructions once
 it's ready for use.

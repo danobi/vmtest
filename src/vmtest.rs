@@ -91,7 +91,9 @@ impl Vmtest {
                     .run()
                     .with_context(|| format!("Failed to run target '{}'", target.name))?;
 
-                println!("Target '{}' results:", target.name);
+                let title = format!("Target '{}' results:", target.name);
+                println!("{}", title);
+                println!("{}", "=".repeat(title.len()));
                 println!("{}", result);
             } else {
                 bail!("Target '{}': image is currently required", target.name)

@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use log::{debug, log_enabled, Level};
-use qapi::{qmp, Qmp};
+use qapi::{qga, qmp, Qga, Qmp};
 use rand::Rng;
 
 /// Represents a single QEMU instance
@@ -175,6 +175,17 @@ impl Qemu {
         let mut qmp = Qmp::from_stream(&qmp_stream);
         let qmp_info = qmp.handshake().context("QMP handshake failed")?;
         debug!("QMP info: {:#?}", qmp_info);
+
+        // Connect to QGA socket
+        let qga_stream = UnixStream::connect(&self.qga_sock).context("Failed to connect QGA")?;
+        let mut qga = Qga::from_stream(&qga_stream);
+        let sync_value = rand::thread_rng().gen_range(1..10_000);
+        qga.guest_sync(sync_value)
+            .context("Failed to QGA guest handshake")?;
+        let qga_info = qga
+            .execute(&qga::guest_info {})
+            .context("Failed to get QGA info")?;
+        debug!("QGA info: {:#?}", qga_info);
 
         // Quit and wait for QEMU to exit
         let _ = qmp.execute(&qmp::quit {}).context("Failed to QMP quit")?;

@@ -9,6 +9,8 @@ license = "Apache-2.0"
 [dependencies]
 anyhow = "1.0.66"
 clap = { version = "4.0.26", features = ["derive"] }
+qapi = { version = "0.10.0", features = ["qmp", "qga"] }
+rand = "0.8.5"
 serde = "1.0.147"
 serde_derive = "1.0.147"
 toml = "0.5.9"

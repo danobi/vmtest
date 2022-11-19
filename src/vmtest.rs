@@ -86,7 +86,12 @@ impl Vmtest {
             let resolved_kernel = self.resolve_path(target.kernel.as_deref());
 
             if let Some(image) = resolved_image {
-                let qemu = Qemu::new(&image, resolved_kernel.as_deref(), &target.command);
+                let qemu = Qemu::new(
+                    &image,
+                    resolved_kernel.as_deref(),
+                    &target.command,
+                    &self.base,
+                );
                 let result = qemu
                     .run()
                     .with_context(|| format!("Failed to run target '{}'", target.name))?;

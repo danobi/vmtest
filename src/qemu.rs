@@ -15,6 +15,8 @@ use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qga, Qmp};
 use rand::Rng;
 
+const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
+
 /// Represents a single QEMU instance
 pub struct Qemu {
     process: Command,
@@ -115,6 +117,23 @@ fn machine_protocol_args(sock: &Path) -> Vec<OsString> {
     args
 }
 
+/// Generate arguments for setting up 9p FS server on host
+fn plan9_fs_args(host_shared: &Path) -> Vec<OsString> {
+    let mut args: Vec<OsString> = Vec::new();
+
+    args.push("-virtfs".into());
+
+    let mut arg = OsString::new();
+    arg.push("local,id=shared,path=");
+    arg.push(host_shared);
+    arg.push(format!(
+        ",mount_tag={SHARED_9P_FS_MOUNT_TAG},security_model=none"
+    ));
+    args.push(arg);
+
+    args
+}
+
 /// Run a process inside the VM and wait until completion
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
@@ -195,7 +214,7 @@ impl Qemu {
     /// Construct a QEMU instance backing a vmtest target.
     ///
     /// Does not run anything yet.
-    pub fn new(image: &Path, kernel: Option<&Path>, command: &str) -> Self {
+    pub fn new(image: &Path, kernel: Option<&Path>, command: &str, host_shared: &Path) -> Self {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
 
@@ -205,6 +224,7 @@ impl Qemu {
             .stderr(Stdio::piped())
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
+            .args(plan9_fs_args(host_shared))
             .args(drive_args(image, 1));
 
         if let Some(kernel) = kernel {
@@ -274,6 +294,36 @@ impl Qemu {
             .collect();
 
         run_in_vm(qga, cmd, &args)
+    }
+
+    /// Mount shared directory in the guest
+    fn mount_shared<S>(&self, qga: &mut Qga<S>) -> Result<()>
+    where
+        S: Write + BufRead,
+    {
+        let mkdir = run_in_vm(qga, "/bin/mkdir", &["-p", "/mnt/vmtest"])?;
+        if mkdir.exitcode != 0 {
+            bail!("Failed to mkdir /mnt/vmtest: {}", mkdir);
+        }
+
+        let msize = 1 << 20;
+        let mount = run_in_vm(
+            qga,
+            "/bin/mount",
+            &[
+                "-t",
+                "9p",
+                "-o",
+                &format!("trans=virtio,cache=loose,msize={msize}"),
+                SHARED_9P_FS_MOUNT_TAG,
+                "/mnt/vmtest",
+            ],
+        )?;
+        if mount.exitcode != 0 {
+            bail!("Failed to mount /mnt/vmtest: {}", mount);
+        }
+
+        Ok(())
     }
 
     /// Cleans up qemu child process if necessary
@@ -346,6 +396,10 @@ impl Qemu {
             .execute(&qga::guest_info {})
             .context("Failed to get QGA info")?;
         debug!("QGA info: {:#?}", qga_info);
+
+        // Mount shared directory inside guest
+        self.mount_shared(&mut qga)
+            .context("Failed to mount shared directory in guest")?;
 
         // Run command in VM
         let qemu_result = self

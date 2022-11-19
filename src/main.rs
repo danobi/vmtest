@@ -1,4 +1,3 @@
-use std::env;
 use std::fs;
 use std::path::PathBuf;
 
@@ -21,8 +20,8 @@ fn main() -> Result<()> {
     env_logger::init();
     let contents = fs::read_to_string(&args.config).context("Failed to read config file")?;
     let config = toml::from_str(&contents).context("Failed to parse config")?;
-    let cwd = env::current_dir().context("Failed to get current working directory")?;
-    let vmtest = vmtest::Vmtest::new(cwd, config)?;
+    let base = args.config.parent().unwrap();
+    let vmtest = vmtest::Vmtest::new(base, config)?;
     vmtest.run().context("vmtest run failed")?;
 
     Ok(())

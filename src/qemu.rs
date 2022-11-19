@@ -125,7 +125,12 @@ fn plan9_fs_args(host_shared: &Path) -> Vec<OsString> {
 
     let mut arg = OsString::new();
     arg.push("local,id=shared,path=");
-    arg.push(host_shared);
+    arg.push(if host_shared.as_os_str().is_empty() {
+        // This case occurs when the config file path is just "vmtest.toml"
+        Path::new(".")
+    } else {
+        host_shared
+    });
     arg.push(format!(
         ",mount_tag={SHARED_9P_FS_MOUNT_TAG},security_model=none"
     ));

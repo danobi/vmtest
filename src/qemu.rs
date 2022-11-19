@@ -1,10 +1,10 @@
 use std::env::consts::ARCH;
 use std::ffi::OsString;
 use std::fmt;
-use std::io::{BufRead, Write};
+use std::io::{read_to_string, BufRead, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time;
 use std::time::Duration;
@@ -276,6 +276,46 @@ impl Qemu {
         run_in_vm(qga, cmd, &args)
     }
 
+    /// Cleans up qemu child process if necessary
+    fn child_cleanup(mut child: Child) {
+        match child.try_wait() {
+            Ok(Some(e)) => {
+                debug!("Child already exited with {e}");
+            }
+            Ok(None) => {
+                // We must have bailed before we sent `quit` over QMP
+                debug!("Child still alive, killing");
+                if let Err(e) = child.kill() {
+                    debug!("Failed to kill child: {}", e);
+                }
+                if let Err(e) = child.wait() {
+                    debug!("Failed to wait on killed child: {}", e);
+                    return;
+                }
+            }
+            Err(e) => {
+                debug!("Failed to wait on child: {}", e);
+                return;
+            }
+        }
+
+        // Dump stdout/stderr in case it's useful for debugging
+        if log_enabled!(Level::Debug) {
+            if let Some(io) = child.stdout {
+                match read_to_string(io) {
+                    Ok(s) => debug!("qemu stdout: {s}"),
+                    Err(e) => debug!("failed to get qemu stdout: {e}"),
+                }
+            }
+            if let Some(io) = child.stderr {
+                match read_to_string(io) {
+                    Ok(s) => debug!("qemu stderr: {s}"),
+                    Err(e) => debug!("failed to get qemu stderr: {e}"),
+                }
+            }
+        }
+    }
+
     /// Run the target to completion
     ///
     /// [`QemuResult`] is returned if command was successfully executed inside
@@ -285,22 +325,7 @@ impl Qemu {
     pub fn run(mut self) -> Result<QemuResult> {
         let child = self.process.spawn().context("Failed to spawn process")?;
         // Ensure child is cleaned up even if we bail early
-        let mut child = scopeguard::guard(child, |mut c| {
-            match c.try_wait() {
-                Ok(Some(e)) => debug!("Child already exited with {e}"),
-                Ok(None) => {
-                    // We must have bailed before we sent `quit` over QMP
-                    debug!("Child still alive, killing");
-                    if let Err(e) = c.kill() {
-                        debug!("Failed to kill child: {}", e);
-                    }
-                    if let Err(e) = c.wait() {
-                        debug!("Failed to wait on killed child: {}", e);
-                    }
-                }
-                Err(e) => debug!("Failed to wait on child: {}", e),
-            }
-        });
+        let mut child = scopeguard::guard(child, Self::child_cleanup);
 
         self.wait_for_qemu(None)
             .context("Failed waiting for QEMU to be ready")?;

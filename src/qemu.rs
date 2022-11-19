@@ -392,10 +392,11 @@ impl Qemu {
         let sync_value = rand::thread_rng().gen_range(1..10_000);
         qga.guest_sync(sync_value)
             .context("Failed to QGA guest handshake")?;
-        let qga_info = qga
+        // Executing guest_info seems to be required for QMP to work. Either a bug or
+        // undocumented...
+        let _ = qga
             .execute(&qga::guest_info {})
             .context("Failed to get QGA info")?;
-        debug!("QGA info: {:#?}", qga_info);
 
         // Mount shared directory inside guest
         self.mount_shared(&mut qga)

@@ -413,9 +413,14 @@ impl Qemu {
             .context("Failed to run command")?;
 
         // Quit and wait for QEMU to exit
-        let _ = qmp.execute(&qmp::quit {}).context("Failed to QMP quit")?;
-        let status = child.wait().context("Failed to wait on child")?;
-        debug!("Exit code: {:?}", status.code());
+        match qmp.execute(&qmp::quit {}) {
+            Ok(_) => {
+                let status = child.wait().context("Failed to wait on child")?;
+                debug!("Exit code: {:?}", status.code());
+            }
+            // TODO(dxu): debug why we are getting errors here
+            Err(e) => debug!("Failed to gracefull quit QEMU: {e}"),
+        }
 
         Ok(qemu_result)
     }

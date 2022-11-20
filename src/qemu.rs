@@ -1,7 +1,7 @@
 use std::env::consts::ARCH;
 use std::ffi::OsString;
 use std::fmt;
-use std::io::{read_to_string, BufRead, Write};
+use std::io::{BufRead, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -356,14 +356,16 @@ impl Qemu {
 
         // Dump stdout/stderr in case it's useful for debugging
         if log_enabled!(Level::Debug) {
-            if let Some(io) = child.stdout {
-                match read_to_string(io) {
+            if let Some(mut io) = child.stdout {
+                let mut s = String::new();
+                match io.read_to_string(&mut s) {
                     Ok(s) => debug!("qemu stdout: {s}"),
                     Err(e) => debug!("failed to get qemu stdout: {e}"),
                 }
             }
-            if let Some(io) = child.stderr {
-                match read_to_string(io) {
+            if let Some(mut io) = child.stderr {
+                let mut s = String::new();
+                match io.read_to_string(&mut s) {
                     Ok(s) => debug!("qemu stderr: {s}"),
                     Err(e) => debug!("failed to get qemu stderr: {e}"),
                 }

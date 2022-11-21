@@ -1,18 +1,20 @@
 use std::env::consts::ARCH;
 use std::ffi::OsString;
 use std::fmt;
-use std::io::{BufRead, Read, Write};
+use std::io::Read;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use itertools::Itertools;
-use log::{debug, log_enabled, warn, Level};
-use qapi::{qga, qmp, Qga, Qmp};
+use log::{debug, error, log_enabled, warn, Level};
+use qapi::{qga, qmp, Command as QapiCommand, Qga, Qmp};
 use rand::Rng;
 
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
@@ -143,10 +145,7 @@ fn plan9_fs_args(host_shared: &Path) -> Vec<OsString> {
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
 /// `/bin/bash -c '...'`
-fn run_in_vm<S>(qga: &mut Qga<S>, cmd: &str, args: &[&str]) -> Result<QemuResult>
-where
-    S: Write + BufRead,
-{
+fn run_in_vm(qga: &QgaWrapper, cmd: &str, args: &[&str]) -> Result<QemuResult> {
     let qga_args = qga::guest_exec {
         path: cmd.to_string(),
         arg: Some(args.iter().map(|a| a.to_string()).collect()),
@@ -154,14 +153,16 @@ where
         input_data: None,
         env: None,
     };
-    let handle = qga.execute(&qga_args).context("Failed to QGA guest-exec")?;
+    let handle = qga
+        .guest_exec(qga_args)
+        .context("Failed to QGA guest-exec")?;
     let pid = handle.pid;
 
     let now = time::Instant::now();
     let mut period = Duration::from_millis(100);
     let status = loop {
         let status = qga
-            .execute(&qga::guest_exec_status { pid })
+            .guest_exec_status(pid)
             .context("Failed to QGA guest-exec-status")?;
 
         if status.exited {
@@ -295,10 +296,7 @@ impl Qemu {
     }
 
     /// Run this target's command inside the VM
-    fn run_command<S>(&self, qga: &mut Qga<S>) -> Result<QemuResult>
-    where
-        S: Write + BufRead,
-    {
+    fn run_command(&self, qga: &QgaWrapper) -> Result<QemuResult> {
         let parts = shell_words::split(&self.command).context("Failed to shell split command")?;
         // This is checked during config validation
         assert!(!parts.is_empty());
@@ -315,10 +313,7 @@ impl Qemu {
     }
 
     /// Mount shared directory in the guest
-    fn mount_shared<S>(&self, qga: &mut Qga<S>) -> Result<()>
-    where
-        S: Write + BufRead,
-    {
+    fn mount_shared(&self, qga: &QgaWrapper) -> Result<()> {
         let mkdir = run_in_vm(qga, "/bin/mkdir", &["-p", "/mnt/vmtest"])?;
         if mkdir.exitcode != 0 {
             bail!("Failed to mkdir /mnt/vmtest: {}", mkdir);
@@ -407,25 +402,14 @@ impl Qemu {
         debug!("QMP info: {:#?}", qmp_info);
 
         // Connect to QGA socket
-        let qga_stream = UnixStream::connect(&self.qga_sock).context("Failed to connect QGA")?;
-        let mut qga = Qga::from_stream(&qga_stream);
-        let sync_value = rand::thread_rng().gen_range(1..10_000);
-        qga.guest_sync(sync_value)
-            .context("Failed to QGA guest handshake")?;
-        // Executing guest_info seems to be required for QMP to work. Either a bug or
-        // undocumented...
-        let _ = qga
-            .execute(&qga::guest_info {})
-            .context("Failed to get QGA info")?;
+        let qga = QgaWrapper::new(self.qga_sock.clone()).context("Failed to connect QGA")?;
 
         // Mount shared directory inside guest
-        self.mount_shared(&mut qga)
+        self.mount_shared(&qga)
             .context("Failed to mount shared directory in guest")?;
 
         // Run command in VM
-        let qemu_result = self
-            .run_command(&mut qga)
-            .context("Failed to run command")?;
+        let qemu_result = self.run_command(&qga).context("Failed to run command")?;
 
         // Quit and wait for QEMU to exit
         match qmp.execute(&qmp::quit {}) {
@@ -448,5 +432,133 @@ impl fmt::Display for QemuResult {
         writeln!(f, "Stderr:\n {}", self.stderr)?;
 
         Ok(())
+    }
+}
+
+/// This is a wrapper around [`Qga`] such that we can execute QGA commands
+/// with a timeout.
+///
+/// The [`Qga`] has unapologetically blocking operations, meaning we can block
+/// forever waiting for QGA to become ready in the guest. Instead, we'd like
+/// to execute all commands with a timeout so we can provide a user friendly
+/// error message if QGA never comes up in the guest.
+struct QgaWrapper {
+    send_req: Sender<QgaWrapperCommand>,
+    recv_resp: Receiver<Result<QgaWrapperCommandResp>>,
+}
+
+#[allow(clippy::enum_variant_names)]
+enum QgaWrapperCommand {
+    GuestSync,
+    GuestExec(qga::guest_exec),
+    GuestExecStatus(qga::guest_exec_status),
+}
+
+#[allow(clippy::enum_variant_names)]
+enum QgaWrapperCommandResp {
+    GuestSync,
+    GuestExec(<qga::guest_exec as QapiCommand>::Ok),
+    GuestExecStatus(<qga::guest_exec_status as QapiCommand>::Ok),
+}
+
+impl QgaWrapper {
+    fn new(sock: PathBuf) -> Result<Self> {
+        let (send_req, recv_req) = mpsc::channel();
+        let (send_resp, recv_resp) = mpsc::channel();
+
+        // Start worker thread to service requests
+        thread::spawn(move || Self::worker(sock, recv_req, send_resp));
+
+        let r = Self {
+            send_req,
+            recv_resp,
+        };
+
+        r.guest_sync()?;
+
+        Ok(r)
+    }
+
+    fn worker(
+        sock: PathBuf,
+        recv_req: Receiver<QgaWrapperCommand>,
+        send_resp: Sender<Result<QgaWrapperCommandResp>>,
+    ) {
+        let qga_stream = match UnixStream::connect(sock) {
+            Ok(s) => s,
+            Err(e) => {
+                // If we fail to connect to socket, exit this thread. The main
+                // thread will detect a hangup and error accordingly.
+                error!("Failed to connect QGA: {}", e);
+                return;
+            }
+        };
+        let mut qga = Qga::from_stream(&qga_stream);
+
+        // We only get an error if other end hangs up. In the event of a hang up,
+        // we gracefully terminate.
+        while let Ok(req) = recv_req.recv() {
+            let resp = match req {
+                QgaWrapperCommand::GuestSync => {
+                    let sync_value = rand::thread_rng().gen_range(1..10_000);
+                    match qga.guest_sync(sync_value) {
+                        Ok(_) => Ok(QgaWrapperCommandResp::GuestSync),
+                        Err(e) => Err(anyhow!("Failed to guest_sync: {}", e)),
+                    }
+                }
+                QgaWrapperCommand::GuestExec(args) => match qga.execute(&args) {
+                    Ok(r) => Ok(QgaWrapperCommandResp::GuestExec(r)),
+                    Err(e) => Err(anyhow!("Failed to guest_exec: {}", e)),
+                },
+                QgaWrapperCommand::GuestExecStatus(args) => match qga.execute(&args) {
+                    Ok(r) => Ok(QgaWrapperCommandResp::GuestExecStatus(r)),
+                    Err(e) => Err(anyhow!("Failed to guest_exec_status: {}", e)),
+                },
+            };
+
+            // Note we do not care if this succeeds or not.
+            // It is OK if receiver has gone away (eg we got timed out).
+            let _ = send_resp.send(resp);
+        }
+    }
+
+    fn execute(&self, cmd: QgaWrapperCommand, timeout: Duration) -> Result<QgaWrapperCommandResp> {
+        match self.send_req.send(cmd) {
+            Ok(_) => (),
+            Err(e) => {
+                debug!("Failed to send QGA command: {}", e);
+                bail!("Failed to send QGA command: worker thread is dead")
+            }
+        };
+
+        match self.recv_resp.recv_timeout(timeout) {
+            Ok(r) => r,
+            Err(RecvTimeoutError::Timeout) => bail!("Timed out waiting for QGA"),
+            Err(RecvTimeoutError::Disconnected) => {
+                bail!("Failed to recv QGA command: worker thread is dead")
+            }
+        }
+    }
+
+    fn guest_sync(&self) -> Result<()> {
+        self.execute(QgaWrapperCommand::GuestSync, Duration::from_secs(30))
+            .map(|_| ())
+    }
+
+    fn guest_exec(&self, args: qga::guest_exec) -> Result<<qga::guest_exec as QapiCommand>::Ok> {
+        match self.execute(QgaWrapperCommand::GuestExec(args), Duration::MAX)? {
+            QgaWrapperCommandResp::GuestExec(resp) => Ok(resp),
+            _ => panic!("Impossible return"),
+        }
+    }
+
+    fn guest_exec_status(&self, pid: i64) -> Result<<qga::guest_exec_status as QapiCommand>::Ok> {
+        match self.execute(
+            QgaWrapperCommand::GuestExecStatus(qga::guest_exec_status { pid }),
+            Duration::from_secs(5),
+        )? {
+            QgaWrapperCommandResp::GuestExecStatus(resp) => Ok(resp),
+            _ => panic!("Impossible return"),
+        }
     }
 }

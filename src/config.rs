@@ -13,6 +13,11 @@ pub struct Target {
     /// * The path is relative to `vmtest.toml`.
     /// * The image must be bootable.
     pub image: Option<PathBuf>,
+    /// Whether or not image should be booted using UEFI
+    ///
+    /// Default: false
+    #[serde(default)]
+    pub uefi: bool,
     /// Path to kernel image to test against.
     ///
     /// * The path is relative to `vmtest.toml`.

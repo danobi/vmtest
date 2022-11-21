@@ -219,7 +219,13 @@ impl Qemu {
     /// Construct a QEMU instance backing a vmtest target.
     ///
     /// Does not run anything yet.
-    pub fn new(image: &Path, kernel: Option<&Path>, command: &str, host_shared: &Path) -> Self {
+    pub fn new(
+        image: &Path,
+        kernel: Option<&Path>,
+        command: &str,
+        host_shared: &Path,
+        uefi: bool,
+    ) -> Self {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
 
@@ -237,6 +243,10 @@ impl Qemu {
 
         if let Some(kernel) = kernel {
             c.arg("-kernel").arg(kernel);
+        }
+
+        if uefi {
+            c.arg("-bios").arg("/usr/share/edk2/ovmf/OVMF_CODE.fd");
         }
 
         if log_enabled!(Level::Debug) {

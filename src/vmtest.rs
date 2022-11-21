@@ -26,6 +26,10 @@ fn validate_config(config: &Config) -> Result<()> {
             );
         }
 
+        if target.uefi && target.image.is_none() {
+            bail!("Target '{}' must specify 'image' with 'uefi'", target.name);
+        }
+
         if let Some(image) = &target.image {
             if image.as_os_str().is_empty() {
                 bail!("Target '{}' has empty image path", target.name);
@@ -91,6 +95,7 @@ impl Vmtest {
                     resolved_kernel.as_deref(),
                     &target.command,
                     &self.base,
+                    target.uefi,
                 );
                 let result = qemu
                     .run()

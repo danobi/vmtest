@@ -225,8 +225,11 @@ impl Qemu {
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
         c.args(QEMU_DEFAULT_ARGS)
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .arg("-serial")
+            .arg("stdio")
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
             .args(plan9_fs_args(host_shared))
@@ -359,14 +362,14 @@ impl Qemu {
             if let Some(mut io) = child.stdout {
                 let mut s = String::new();
                 match io.read_to_string(&mut s) {
-                    Ok(s) => debug!("qemu stdout: {s}"),
+                    Ok(_) => debug!("qemu stdout: {s}"),
                     Err(e) => debug!("failed to get qemu stdout: {e}"),
                 }
             }
             if let Some(mut io) = child.stderr {
                 let mut s = String::new();
                 match io.read_to_string(&mut s) {
-                    Ok(s) => debug!("qemu stderr: {s}"),
+                    Ok(_) => debug!("qemu stderr: {s}"),
                     Err(e) => debug!("failed to get qemu stderr: {e}"),
                 }
             }

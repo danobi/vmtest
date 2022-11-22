@@ -1,1 +1,6 @@
 /target
+*.cmdline
+*.initrd
+*.raw
+*.raw.manifest
+*.vmlinuz

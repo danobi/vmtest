@@ -1,0 +1,9 @@
+[Distribution]
+Distribution=fedora
+Release=37
+
+[Content]
+Packages=qemu-guest-agent
+
+[Output]
+Bootable=True

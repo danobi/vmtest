@@ -81,10 +81,11 @@ impl Vmtest {
     }
 
     /// Run test matrix.
+    ///
+    /// Note that there are no plans to run targets in parallel. This is because
+    /// guests may use quite a few resources on the host. So be deliberately careful
+    /// here not to exhaust host resources.
     pub fn run(&self) -> Result<()> {
-        // Run targets in serial
-        //
-        // TODO(dxu): run targets concurrently using async
         for target in &self.config.target {
             let resolved_image = self.resolve_path(target.image.as_deref());
             let resolved_kernel = self.resolve_path(target.kernel.as_deref());

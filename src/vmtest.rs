@@ -86,6 +86,7 @@ impl Vmtest {
     /// guests may use quite a few resources on the host. So be deliberately careful
     /// here not to exhaust host resources.
     pub fn run(&self) -> Result<()> {
+        let mut failures = 0u32;
         for target in &self.config.target {
             let resolved_image = self.resolve_path(target.image.as_deref());
             let resolved_kernel = self.resolve_path(target.kernel.as_deref());
@@ -98,9 +99,20 @@ impl Vmtest {
                     &self.base,
                     target.uefi,
                 );
-                let result = qemu
-                    .run()
-                    .with_context(|| format!("Failed to run target '{}'", target.name))?;
+
+                // Err(..) is returned for mechanical errors. Non-zero exitcode is still Ok(..)
+                let result = match qemu.run() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("Failed to run target '{}': {}", target.name, e);
+                        failures += 1;
+                        continue;
+                    }
+                };
+
+                if result.exitcode != 0 {
+                    failures += 1;
+                }
 
                 let title = format!("Target '{}' results:", target.name);
                 println!("{}", title);
@@ -109,6 +121,10 @@ impl Vmtest {
             } else {
                 bail!("Target '{}': image is currently required", target.name)
             }
+        }
+
+        if failures > 0 {
+            bail!("{} targets failed", failures);
         }
 
         Ok(())

@@ -428,8 +428,12 @@ impl Qemu {
 impl fmt::Display for QemuResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Exit code: {}", self.exitcode)?;
-        writeln!(f, "Stdout:\n {}", self.stdout)?;
-        writeln!(f, "Stderr:\n {}", self.stderr)?;
+        if !self.stdout.is_empty() {
+            writeln!(f, "Stdout:\n{}", self.stdout)?;
+        }
+        if !self.stderr.is_empty() {
+            writeln!(f, "Stderr:\n{}", self.stderr)?;
+        }
 
         Ok(())
     }

@@ -18,6 +18,15 @@ use rand::Rng;
 use crate::qga::QgaWrapper;
 
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
+const OVMF_PATHS: &[&str] = &[
+    // Fedora
+    "/usr/share/edk2/ovmf/OVMF_CODE.fd",
+    // Ubuntu
+    "/usr/share/OVMF/OVMF_CODE.fd",
+    // Arch linux
+    // TODO(dxu): parameterize by architecture
+    "/usr/share/edk2-ovmf/x64/OVMF_CODE.fd",
+];
 
 /// Represents a single QEMU instance
 pub struct Qemu {
@@ -159,6 +168,24 @@ fn plan9_fs_args(host_shared: &Path) -> Vec<OsString> {
     args
 }
 
+fn uefi_firmware_args() -> Vec<&'static str> {
+    let mut args = Vec::new();
+
+    args.push("-bios");
+
+    let mut chosen = OVMF_PATHS[0];
+    for path in OVMF_PATHS {
+        if Path::new(path).exists() {
+            debug!("Found OVMF firmware: {}", path);
+            chosen = path;
+            break;
+        }
+    }
+    args.push(chosen);
+
+    args
+}
+
 /// Run a process inside the VM and wait until completion
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
@@ -266,7 +293,7 @@ impl Qemu {
         }
 
         if uefi {
-            c.arg("-bios").arg("/usr/share/edk2/ovmf/OVMF_CODE.fd");
+            c.args(uefi_firmware_args());
         }
 
         if log_enabled!(Level::Debug) {

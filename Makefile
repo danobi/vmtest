@@ -1,4 +1,4 @@
-MKOSI_CONFIGS := $(shell find test -name 'mkosi.default')
+MKOSI_CONFIGS := $(shell find tests -name 'mkosi.default')
 MKOSI_DIRS := $(dir $(MKOSI_CONFIGS))
 MKOSI_IMAGES := $(foreach dir,$(MKOSI_DIRS),$(dir)/image.raw)
 

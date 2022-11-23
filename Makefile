@@ -8,7 +8,7 @@ all:
 
 .PHONY: test
 test: images
-	@cargo test -- --test-threads=1
+	@RUST_LOG=debug cargo test -- --test-threads=1 --nocapture
 
 .PHONY: images
 images: $(MKOSI_IMAGES)

@@ -2,6 +2,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use test_log::test;
+
 use vmtest::vmtest::Vmtest;
 
 // Change working directory into integration test dir

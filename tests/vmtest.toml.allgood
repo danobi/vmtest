@@ -2,10 +2,10 @@
 name = "ubuntu 22.04 jammy"
 image = "ubuntu/image.raw"
 uefi = true
-command = "grep ID=ubuntu /etc/os-release"
+command = "/mnt/vmtest/main.sh ubuntu vmtest.toml.allgood"
 
 [[target]]
 name = "fedora 36"
 image = "fedora/image.raw"
 uefi = true
-command = "grep ID=fedora /etc/os-release"
+command = "/mnt/vmtest/main.sh fedora vmtest.toml.allgood"

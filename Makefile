@@ -8,7 +8,7 @@ all:
 
 .PHONY: test
 test: images
-	@cargo test
+	@cargo test -- --test-threads=1
 
 .PHONY: images
 images: $(MKOSI_IMAGES)

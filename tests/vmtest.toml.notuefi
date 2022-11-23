@@ -1,0 +1,10 @@
+[[target]]
+name = "ubuntu notuefi"
+image = "ubuntu/image.raw"
+command = "echo unreachable but should succeed"
+
+[[target]]
+name = "ubuntu uefi"
+image = "ubuntu/image.raw"
+uefi = true
+command = "/mnt/vmtest/main.sh ubuntu vmtest.toml.notuefi"

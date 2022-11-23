@@ -31,7 +31,7 @@ pub struct Qemu {
 ///
 /// The command could have succeeded or failed _inside_ the VM --
 /// it is up for caller to interpret the contents of this struct.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct QemuResult {
     /// Return code of command
     pub exitcode: i64,

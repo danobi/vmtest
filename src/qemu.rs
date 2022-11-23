@@ -51,6 +51,11 @@ const QEMU_DEFAULT_ARGS: &[&str] = &[
     "2", // TOOD(dxu): make configurable
 ];
 
+/// Whether or not the host supports KVM
+fn host_supports_kvm() -> bool {
+    Path::new("/dev/kvm").exists()
+}
+
 // Generate a path to a randomly named socket
 fn gen_sock(prefix: &str) -> PathBuf {
     let mut path = PathBuf::new();
@@ -105,7 +110,7 @@ fn guest_agent_args(sock: &Path) -> Vec<OsString> {
 fn kvm_args() -> Vec<&'static str> {
     let mut args = Vec::new();
 
-    if Path::new("/dev/kvm").exists() {
+    if host_supports_kvm() {
         args.push("-enable-kvm");
         args.push("-cpu");
         args.push("host");
@@ -416,7 +421,8 @@ impl Qemu {
         debug!("QMP info: {:#?}", qmp_info);
 
         // Connect to QGA socket
-        let qga = QgaWrapper::new(self.qga_sock.clone()).context("Failed to connect QGA")?;
+        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm())
+            .context("Failed to connect QGA")?;
 
         // Mount shared directory inside guest
         self.mount_shared(&qga)

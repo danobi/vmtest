@@ -10,6 +10,9 @@ use log::{debug, error};
 use qapi::{qga, Command as QapiCommand, Qga};
 use rand::Rng;
 
+const KVM_TIMEOUT: Duration = Duration::from_secs(30);
+const EMULATE_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// This is a wrapper around [`Qga`] such that we can execute QGA commands
 /// with a timeout.
 ///
@@ -37,8 +40,11 @@ pub enum QgaWrapperCommandResp {
 }
 
 impl QgaWrapper {
-    /// Create a new `QgaWrapper`, where `sock` is the path to the QGA socket
-    pub fn new(sock: PathBuf) -> Result<Self> {
+    /// Create a new `QgaWrapper`
+    ///
+    /// `sock` is the path to the QGA socket.
+    /// `has_kvm` whether or not host supports KVM
+    pub fn new(sock: PathBuf, has_kvm: bool) -> Result<Self> {
         let (send_req, recv_req) = mpsc::channel();
         let (send_resp, recv_resp) = mpsc::channel();
 
@@ -50,7 +56,12 @@ impl QgaWrapper {
             recv_resp,
         };
 
-        r.guest_sync()?;
+        let timeout = if has_kvm {
+            KVM_TIMEOUT
+        } else {
+            EMULATE_TIMEOUT
+        };
+        r.guest_sync(timeout)?;
 
         Ok(r)
     }
@@ -119,8 +130,8 @@ impl QgaWrapper {
     }
 
     /// Sync with qemu-ga inside guest
-    pub fn guest_sync(&self) -> Result<()> {
-        self.execute(QgaWrapperCommand::GuestSync, Duration::from_secs(30))
+    pub fn guest_sync(&self, timeout: Duration) -> Result<()> {
+        self.execute(QgaWrapperCommand::GuestSync, timeout)
             .map(|_| ())
     }
 

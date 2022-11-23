@@ -45,11 +45,8 @@ const QEMU_DEFAULT_ARGS: &[&str] = &[
     "-nodefaults",
     "-display",
     "none",
-    "-enable-kvm",
     "-m",
     "4G", // TODO(dxu): make configurable
-    "-cpu",
-    "host",
     "-smp",
     "2", // TOOD(dxu): make configurable
 ];
@@ -100,6 +97,22 @@ fn guest_agent_args(sock: &Path) -> Vec<OsString> {
 
     args.push("-device".into());
     args.push("virtserialport,chardev=qga0,name=org.qemu.guest_agent.0".into());
+
+    args
+}
+
+/// Generate arguments for full KVM virtualization if host supports it
+fn kvm_args() -> Vec<&'static str> {
+    let mut args = Vec::new();
+
+    if Path::new("/dev/kvm").exists() {
+        args.push("-enable-kvm");
+        args.push("-cpu");
+        args.push("host");
+    } else {
+        args.push("-cpu");
+        args.push("qemu64");
+    }
 
     args
 }
@@ -237,6 +250,7 @@ impl Qemu {
             .stderr(Stdio::piped())
             .arg("-serial")
             .arg("stdio")
+            .args(kvm_args())
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
             .args(plan9_fs_args(host_shared))

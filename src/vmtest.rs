@@ -1,10 +1,10 @@
 use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 use crate::config::Config;
-use crate::qemu::Qemu;
+use crate::qemu::{Qemu, QemuResult};
 
 /// Central vmtest data structure
 pub struct Vmtest {
@@ -80,51 +80,57 @@ impl Vmtest {
         }
     }
 
-    /// Run test matrix.
+    /// Run a single target
     ///
-    /// Note that there are no plans to run targets in parallel. This is because
-    /// guests may use quite a few resources on the host. So be deliberately careful
-    /// here not to exhaust host resources.
+    /// `idx` is the position of the target in the target list (0-indexed)
+    pub fn run_one(&self, idx: usize) -> Result<QemuResult> {
+        let target = self
+            .config
+            .target
+            .get(idx)
+            .ok_or_else(|| anyhow!("idx={} out of range", idx))?;
+        let image = self
+            .resolve_path(target.image.as_deref())
+            .ok_or_else(|| anyhow!("Target '{}': image is currently required", target.name))?;
+        let kernel = self.resolve_path(target.kernel.as_deref());
+
+        Qemu::new(
+            &image,
+            kernel.as_deref(),
+            &target.command,
+            &self.base,
+            target.uefi,
+        )
+        .run()
+        .context("Failed to run QEMU")
+    }
+
+    /// Convenience wrapper to run entire test matrix
+    ///
+    /// Note this method prints results to stdout/stderr
     pub fn run(&self) -> Result<()> {
-        let mut failures = 0u32;
-        for target in &self.config.target {
-            let resolved_image = self.resolve_path(target.image.as_deref());
-            let resolved_kernel = self.resolve_path(target.kernel.as_deref());
+        let mut failed = 0;
+        for (idx, target) in self.config.target.iter().enumerate() {
+            let title = format!("Target '{}' results:", target.name);
+            println!("{}", title);
+            println!("{}", "=".repeat(title.len()));
 
-            if let Some(image) = resolved_image {
-                let qemu = Qemu::new(
-                    &image,
-                    resolved_kernel.as_deref(),
-                    &target.command,
-                    &self.base,
-                    target.uefi,
-                );
-
-                // Err(..) is returned for mechanical errors. Non-zero exitcode is still Ok(..)
-                let result = match qemu.run() {
-                    Ok(r) => r,
-                    Err(e) => {
-                        eprintln!("Failed to run target '{}': {}", target.name, e);
-                        failures += 1;
-                        continue;
+            match self.run_one(idx) {
+                Ok(result) => {
+                    println!("{}", result);
+                    if result.exitcode != 0 {
+                        failed += 1;
                     }
-                };
-
-                if result.exitcode != 0 {
-                    failures += 1;
                 }
-
-                let title = format!("Target '{}' results:", target.name);
-                println!("{}", title);
-                println!("{}", "=".repeat(title.len()));
-                println!("{}", result);
-            } else {
-                bail!("Target '{}': image is currently required", target.name)
-            }
+                Err(e) => {
+                    eprintln!("Failed to run: {}", e);
+                    failed += 1;
+                }
+            };
         }
 
-        if failures > 0 {
-            bail!("{} targets failed", failures);
+        if failed > 0 {
+            bail!("{} targets failed", failed);
         }
 
         Ok(())

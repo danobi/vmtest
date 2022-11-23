@@ -48,7 +48,9 @@ fn test_run_one() {
 fn test_not_uefi() {
     let vmtest = vmtest("vmtest.toml.notuefi");
 
-    vmtest.run_one(0).expect_err("Not uefi image should have failed");
+    vmtest
+        .run_one(0)
+        .expect_err("Not uefi image should have failed");
 
     let result = vmtest.run_one(1).expect("uefi should succeed");
     assert_eq!(result.exitcode, 0);

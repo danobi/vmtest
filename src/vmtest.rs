@@ -19,12 +19,22 @@ fn validate_config(config: &Config) -> Result<()> {
             bail!("Target index={} name empty", idx);
         }
 
-        if target.image.is_none() && target.kernel.is_none() {
-            bail!(
-                "Target '{}' must specify 'image', 'kernel', or both",
+        // Must choose image XOR kernel. We do not allow combining image and kernel
+        // b/c images typically make use of initramfs to locate the root disk,
+        // handle encrypted partitions, LVM, etc., and we cannot accurately guess
+        // how to handle boot. Nor can we place a kernel _in_ the image.
+        //
+        // So we force user to choose one or the other. If sufficiently motivated,
+        // the user can always install the kernel into the image and use vmtest
+        // in image mode.
+        match (&target.image, &target.kernel) {
+            (None, None) => bail!("Target '{}' must specify 'image' or 'kernel'", target.name),
+            (Some(_), Some(_)) => bail!(
+                "Target '{}' specified both 'image' and 'kernel'",
                 target.name
-            );
-        }
+            ),
+            _ => (),
+        };
 
         if target.uefi && target.image.is_none() {
             bail!("Target '{}' must specify 'image' with 'uefi'", target.name);

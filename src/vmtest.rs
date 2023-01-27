@@ -123,7 +123,8 @@ impl Vmtest {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to run: {}", e);
+                    // NB: need to use debug formatting to get full error chain
+                    eprintln!("Failed to run: {:?}", e);
                     failed += 1;
                 }
             };

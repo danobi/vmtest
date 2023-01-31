@@ -215,6 +215,9 @@ fn kernel_args(kernel: &Path) -> Vec<OsString> {
     cmdline.push("ro");
     cmdline.push("console=0,115200");
 
+    // We are not using RAID and this will help speed up boot
+    cmdline.push("raid=noautodetect");
+
     // Run systemd as init and target `rescue.target` for boot.
     //
     // This special (ie built-in) target will set up all the various low

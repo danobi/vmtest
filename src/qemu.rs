@@ -150,22 +150,23 @@ fn machine_protocol_args(sock: &Path) -> Vec<OsString> {
 }
 
 /// Generate arguments for setting up 9p FS server on host
-fn plan9_fs_args(host_shared: &Path) -> Vec<OsString> {
+///
+/// `id` is the ID for the FS export (currently unused AFAICT)
+/// `mount_tag` is used inside guest to find the export
+fn plan9_fs_args(host_shared: &Path, id: &str, mount_tag: &str) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
 
     args.push("-virtfs".into());
 
     let mut arg = OsString::new();
-    arg.push("local,id=shared,path=");
+    arg.push(format!("local,id={id},path="));
     arg.push(if host_shared.as_os_str().is_empty() {
         // This case occurs when the config file path is just "vmtest.toml"
         Path::new(".")
     } else {
         host_shared
     });
-    arg.push(format!(
-        ",mount_tag={SHARED_9P_FS_MOUNT_TAG},security_model=none"
-    ));
+    arg.push(format!(",mount_tag={mount_tag},security_model=none"));
     args.push(arg);
 
     args
@@ -195,8 +196,6 @@ fn uefi_firmware_args() -> Vec<&'static str> {
 /// the host's systemd as init but boot into `rescue.target` in the guest.
 fn kernel_args(kernel: &Path) -> Vec<OsString> {
     let mut args = Vec::new();
-
-    // XXX: add 9p rootfs args on host side (maybe not in this func)
 
     // Set the guest kernel
     args.push("-kernel".into());
@@ -334,7 +333,7 @@ impl Qemu {
             .args(kvm_args())
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
-            .args(plan9_fs_args(host_shared));
+            .args(plan9_fs_args(host_shared, "shared", SHARED_9P_FS_MOUNT_TAG));
 
         if let Some(image) = image {
             c.args(drive_args(image, 1));
@@ -342,6 +341,11 @@ impl Qemu {
                 c.args(uefi_firmware_args());
             }
         } else if let Some(kernel) = kernel {
+            c.args(plan9_fs_args(
+                Path::new("/"),
+                "root",
+                ROOTFS_9P_FS_MOUNT_TAG,
+            ));
             c.args(kernel_args(kernel));
         } else {
             panic!("Config validation should've enforced XOR");

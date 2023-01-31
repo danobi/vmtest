@@ -201,6 +201,9 @@ fn kernel_args(kernel: &Path) -> Vec<OsString> {
     args.push("-kernel".into());
     args.push(kernel.into());
 
+    // See below `panic=-1` for explanation
+    args.push("-no-reboot".into());
+
     // The guest kernel command line args
     let mut cmdline: Vec<&str> = Vec::new();
 
@@ -226,6 +229,10 @@ fn kernel_args(kernel: &Path) -> Vec<OsString> {
     // See man pages systemd(1) and bootup(7) for more details.
     cmdline.push("init=/lib/systemd/systemd");
     cmdline.push("systemd.unit=rescue.target");
+
+    // Trigger an immediate reboot on panic.
+    // When paired with above `-no-reboot`, this will cause qemu to exit
+    cmdline.push("panic=-1");
 
     // Set host side qemu kernel command line
     args.push("-append".into());

@@ -17,7 +17,10 @@ use rand::Rng;
 
 use crate::qga::QgaWrapper;
 
+// Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
+const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
+const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=loose,msize=1048576";
 const OVMF_PATHS: &[&str] = &[
     // Fedora
     "/usr/share/edk2/ovmf/OVMF_CODE.fd",
@@ -186,6 +189,52 @@ fn uefi_firmware_args() -> Vec<&'static str> {
     args
 }
 
+/// Generate arguments for running a kernel with current userspace
+///
+/// The basic idea is we'll map host root onto guest root. And then use
+/// the host's systemd as init but boot into `rescue.target` in the guest.
+fn kernel_args(kernel: &Path) -> Vec<OsString> {
+    let mut args = Vec::new();
+
+    // XXX: add 9p rootfs args on host side (maybe not in this func)
+
+    // Set the guest kernel
+    args.push("-kernel".into());
+    args.push(kernel.into());
+
+    // The guest kernel command line args
+    let mut cmdline: Vec<&str> = Vec::new();
+
+    // Tell kernel the rootfs is 9p
+    cmdline.push("rootfstype=9p");
+    let rootflags = format!("rootflags={}", MOUNT_OPTS_9P_FS);
+    cmdline.push(&rootflags);
+
+    cmdline.push("ro");
+    cmdline.push("console=0,115200");
+
+    // Run systemd as init and target `rescue.target` for boot.
+    //
+    // This special (ie built-in) target will set up all the various low
+    // level mounts (eg. procfs, debugfs, etc.) as well as start udevd (which
+    // is important for QGA to automatically start). This is analogous to
+    // sysvinit's runlevel 1.
+    //
+    // Equally as important: it won't try to start the various services
+    // the host system has installed. That doesn't mean the vmtest command
+    // can't start them if they want to later, though.
+    //
+    // See man pages systemd(1) and bootup(7) for more details.
+    cmdline.push("init=/lib/systemd/systemd");
+    cmdline.push("systemd.unit=rescue.target");
+
+    // Set host side qemu kernel command line
+    args.push("-append".into());
+    args.push(cmdline.join(" ").into());
+
+    args
+}
+
 /// Run a process inside the VM and wait until completion
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
@@ -293,7 +342,7 @@ impl Qemu {
                 c.args(uefi_firmware_args());
             }
         } else if let Some(kernel) = kernel {
-            c.arg("-kernel").arg(kernel);
+            c.args(kernel_args(kernel));
         } else {
             panic!("Config validation should've enforced XOR");
         }
@@ -367,7 +416,6 @@ impl Qemu {
             bail!("Failed to mkdir /mnt/vmtest: {}", mkdir);
         }
 
-        let msize = 1 << 20;
         let mount = run_in_vm(
             qga,
             "/bin/mount",
@@ -375,7 +423,7 @@ impl Qemu {
                 "-t",
                 "9p",
                 "-o",
-                &format!("trans=virtio,cache=loose,msize={msize}"),
+                MOUNT_OPTS_9P_FS,
                 SHARED_9P_FS_MOUNT_TAG,
                 "/mnt/vmtest",
             ],

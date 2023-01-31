@@ -266,7 +266,7 @@ impl Qemu {
     ///
     /// Does not run anything yet.
     pub fn new(
-        image: &Path,
+        image: Option<&Path>,
         kernel: Option<&Path>,
         command: &str,
         host_shared: &Path,
@@ -285,15 +285,17 @@ impl Qemu {
             .args(kvm_args())
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
-            .args(plan9_fs_args(host_shared))
-            .args(drive_args(image, 1));
+            .args(plan9_fs_args(host_shared));
 
-        if let Some(kernel) = kernel {
+        if let Some(image) = image {
+            c.args(drive_args(image, 1));
+            if uefi {
+                c.args(uefi_firmware_args());
+            }
+        } else if let Some(kernel) = kernel {
             c.arg("-kernel").arg(kernel);
-        }
-
-        if uefi {
-            c.args(uefi_firmware_args());
+        } else {
+            panic!("Config validation should've enforced XOR");
         }
 
         if log_enabled!(Level::Debug) {

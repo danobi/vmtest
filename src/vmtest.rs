@@ -99,13 +99,11 @@ impl Vmtest {
             .target
             .get(idx)
             .ok_or_else(|| anyhow!("idx={} out of range", idx))?;
-        let image = self
-            .resolve_path(target.image.as_deref())
-            .ok_or_else(|| anyhow!("Target '{}': image is currently required", target.name))?;
+        let image = self.resolve_path(target.image.as_deref());
         let kernel = self.resolve_path(target.kernel.as_deref());
 
         Qemu::new(
-            &image,
+            image.as_deref(),
             kernel.as_deref(),
             &target.command,
             &self.base,

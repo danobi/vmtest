@@ -22,7 +22,7 @@ Host machine:
 
 * [`qemu`](https://pkgs.org/download/qemu)
 * [`qemu-guest-agent`](https://pkgs.org/search/?q=qemu-guest-agent)
-* [`OVMF`](https://pkgs.org/download/ovmf) (if using `uefi =` target parameter)
+* [`OVMF`](https://pkgs.org/download/ovmf) (if using `uefi` target parameter)
 
 Virtual machine image:
 

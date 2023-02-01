@@ -1,4 +1,17 @@
 #!/bin/bash
+#
+# This serves as the init process (PID 1) of the guest VM.
+#
+# Hopefully this stays fairly simple. The basic idea is that the host rootfs is
+# shared as read-only (see `ro` kernel cmdline param).  Since everything
+# appears as a regular directory (and not a mount point), we are allowed to
+# "mount over" any directory to make it guest-specific and possibly writable.
+#
+# In general, we want to mount over most of the major pseudo-fs's like procfs,
+# cgroup2, devtmpfs, etc.
+#
+# And for any directories we want the guest to to be able to write into, we can
+# mount a tmpfs over it.
 
 set -eu
 
@@ -52,6 +65,9 @@ mount -t sysfs -o nosuid,nodev,noexec sys /sys
 
 log "Mounting cgroup2 at /sys/fs/cgroup"
 mount -t cgroup2 -o nosuid,nodev,noexec cgroup2 /sys/fs/cgroup
+
+log "Mounting tmpfs at /mnt"
+mount -t tmpfs -o nosuid,nodev tmpfs /mnt
 
 log "Init done"
 

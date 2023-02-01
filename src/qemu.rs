@@ -166,7 +166,9 @@ fn plan9_fs_args(host_shared: &Path, id: &str, mount_tag: &str) -> Vec<OsString>
     } else {
         host_shared
     });
-    arg.push(format!(",mount_tag={mount_tag},security_model=none"));
+    arg.push(format!(
+        ",mount_tag={mount_tag},security_model=none,multidevs=remap"
+    ));
     args.push(arg);
 
     args

@@ -54,3 +54,20 @@ log "Mounting cgroup2 at /sys/fs/cgroup"
 mount -t cgroup2 -o nosuid,nodev,noexec cgroup2 /sys/fs/cgroup
 
 log "Init done"
+
+# Locate our QGA virtio port
+vport=
+for dir in /sys/class/virtio-ports/*; do
+    if [[ "$(cat "$dir/name")" == "org.qemu.guest_agent.0" ]]; then
+        vport_name=$(basename "$dir")
+        vport="/dev/${vport_name}"
+    fi
+done
+if [[ -z "$vport" ]]; then
+    log "Failed to locate qemu-guest-agent virio-port"
+    exit 1
+fi
+log "Located qemu-guest-agent virtio port: ${vport}"
+
+log "Spawning qemu-ga"
+qemu-ga --method=virtio-serial --path="$vport"

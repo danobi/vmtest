@@ -1,6 +1,6 @@
 # vmtest
 
-** Currently under active development. Feedback is welcome. **
+**Currently under active development. Feedback is welcome.**
 
 `vmtest` enables you to quickly and programmatically run tests inside a virtual
 machine.
@@ -20,9 +20,9 @@ The following are required dependencies, grouped by location:
 
 Host machine:
 
-* `qemu`(https://pkgs.org/download/qemu)
+* [`qemu`](https://pkgs.org/download/qemu)
 * [`qemu-guest-agent`](https://pkgs.org/search/?q=qemu-guest-agent)
-* [OVMF](https://pkgs.org/download/ovmf) (if using `uefi =` target parameter)
+* [`OVMF`](https://pkgs.org/download/ovmf) (if using `uefi =` target parameter)
 
 Virtual machine image:
 
@@ -50,7 +50,7 @@ dependencies.
 
 For example, consider the following `vmtest.toml`:
 
-```toml
+```
 [[target]]
 name = "AWS kernel"
 kernel = "./bzImage-5.15.0-1022-aws
@@ -72,8 +72,8 @@ with the same userspace environment as the host, except with the specified
 provided VM image. The image completely defines the environment `command` is
 run in with the exception of `/mnt/vmtest`. `/mnt/vmtest` (as we will see
 below) contains the full directory tree of the host machine rooted at the
-directory containing `vmtest.toml`. This directory tree is shared - not copied
-- with both readable and writable permissions.
+directory containing `vmtest.toml`. This directory tree is shared - **not
+copied** - with both readable and writable permissions.
 
 Running vmtest with the above config yields the following results:
 

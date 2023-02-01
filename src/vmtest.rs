@@ -109,6 +109,7 @@ impl Vmtest {
             &self.base,
             target.uefi,
         )
+        .context("Failed to setup QEMU")?
         .run()
         .context("Failed to run QEMU")
     }

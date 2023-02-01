@@ -1,7 +1,8 @@
 use std::env::consts::ARCH;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::io::Read;
+use std::io::{Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -14,9 +15,11 @@ use itertools::Itertools;
 use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qmp};
 use rand::Rng;
+use tempfile::{Builder, NamedTempFile};
 
 use crate::qga::QgaWrapper;
 
+const INIT_SCRIPT: &str = include_str!("init/init.sh");
 // Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
 const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
@@ -37,6 +40,7 @@ pub struct Qemu {
     qga_sock: PathBuf,
     qmp_sock: PathBuf,
     command: String,
+    _init: NamedTempFile,
 }
 
 /// This struct contains the result of the qemu command execution.
@@ -78,6 +82,31 @@ fn gen_sock(prefix: &str) -> PathBuf {
     path.push(sock);
 
     path
+}
+
+fn gen_init() -> Result<NamedTempFile> {
+    let mut f = Builder::new()
+        .prefix("vmtest-init")
+        .suffix(".sh")
+        .rand_bytes(5)
+        .tempfile()
+        .context("Failed to create tempfile")?;
+
+    f.write_all(INIT_SCRIPT.as_bytes())
+        .context("Failed to write init to tmpfs")?;
+
+    // Set write bits on script
+    let mut perms = f
+        .as_file()
+        .metadata()
+        .context("Failed to get init tempfile metadata")?
+        .permissions();
+    perms.set_mode(perms.mode() | 0o111);
+    f.as_file()
+        .set_permissions(perms)
+        .context("Failed to set executable bits on init tempfile")?;
+
+    Ok(f)
 }
 
 /// Generate arguments for inserting a file as a drive into the guest
@@ -196,7 +225,7 @@ fn uefi_firmware_args() -> Vec<&'static str> {
 ///
 /// The basic idea is we'll map host root onto guest root. And then use
 /// the host's systemd as init but boot into `rescue.target` in the guest.
-fn kernel_args(kernel: &Path) -> Vec<OsString> {
+fn kernel_args(kernel: &Path, init: &Path) -> Vec<OsString> {
     let mut args = Vec::new();
 
     // Set the guest kernel
@@ -207,41 +236,38 @@ fn kernel_args(kernel: &Path) -> Vec<OsString> {
     args.push("-no-reboot".into());
 
     // The guest kernel command line args
-    let mut cmdline: Vec<&str> = Vec::new();
+    let mut cmdline: Vec<OsString> = Vec::new();
 
     // Tell kernel the rootfs is 9p
-    cmdline.push("rootfstype=9p");
-    let rootflags = format!("rootflags={}", MOUNT_OPTS_9P_FS);
-    cmdline.push(&rootflags);
+    cmdline.push("rootfstype=9p".into());
+    cmdline.push(format!("rootflags={}", MOUNT_OPTS_9P_FS).into());
 
-    cmdline.push("ro");
-    cmdline.push("console=0,115200");
+    // Mount rootfs as ro to protect host from poorly behaving guest.
+    // Note the shared directory will still be mutable to allow for
+    // data transfer.
+    cmdline.push("ro".into());
+
+    cmdline.push("console=0,115200".into());
 
     // We are not using RAID and this will help speed up boot
-    cmdline.push("raid=noautodetect");
+    cmdline.push("raid=noautodetect".into());
 
-    // Run systemd as init and target `rescue.target` for boot.
+    // Specify our custom init.
     //
-    // This special (ie built-in) target will set up all the various low
-    // level mounts (eg. procfs, debugfs, etc.) as well as start udevd (which
-    // is important for QGA to automatically start). This is analogous to
-    // sysvinit's runlevel 1.
-    //
-    // Equally as important: it won't try to start the various services
-    // the host system has installed. That doesn't mean the vmtest command
-    // can't start them if they want to later, though.
-    //
-    // See man pages systemd(1) and bootup(7) for more details.
-    cmdline.push("init=/lib/systemd/systemd");
-    cmdline.push("systemd.unit=rescue.target");
+    // Note we are assuming the host's tmpfs is attached to rootfs. Which
+    // seems like a reasonable assumption.
+    let mut init_arg = OsString::new();
+    init_arg.push("init=");
+    init_arg.push(init);
+    cmdline.push(init_arg);
 
     // Trigger an immediate reboot on panic.
     // When paired with above `-no-reboot`, this will cause qemu to exit
-    cmdline.push("panic=-1");
+    cmdline.push("panic=-1".into());
 
     // Set host side qemu kernel command line
     args.push("-append".into());
-    args.push(cmdline.join(" ").into());
+    args.push(cmdline.join(OsStr::new(" ")));
 
     args
 }
@@ -331,9 +357,10 @@ impl Qemu {
         command: &str,
         host_shared: &Path,
         uefi: bool,
-    ) -> Self {
+    ) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
+        let init = gen_init().context("Failed to generate init")?;
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
         c.args(QEMU_DEFAULT_ARGS)
@@ -358,7 +385,7 @@ impl Qemu {
                 "root",
                 ROOTFS_9P_FS_MOUNT_TAG,
             ));
-            c.args(kernel_args(kernel));
+            c.args(kernel_args(kernel, init.path()));
         } else {
             panic!("Config validation should've enforced XOR");
         }
@@ -372,12 +399,13 @@ impl Qemu {
             );
         }
 
-        Self {
+        Ok(Self {
             process: c,
             qga_sock,
             qmp_sock,
             command: command.to_string(),
-        }
+            _init: init,
+        })
     }
 
     /// Waits for QMP and QGA sockets to appear

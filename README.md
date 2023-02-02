@@ -174,3 +174,10 @@ exports two volumes: `/mnt/vmtest` and the root filesystem. The latter export
 effectively gives the guest VM the same userspace environment as the host,
 except we mount it read-only so the guest cannot do too much damage to the
 host.
+
+## Acknowledgements
+
+Many thanks to [`drgn`'s
+vmtest](https://github.com/osandov/drgn/tree/main/vmtest) by Omar Sandoval and
+Andy Lutomirski's most excellent [`virtme`](https://github.com/amluto/virtme)
+for providing both ideas and technical exploration.

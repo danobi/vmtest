@@ -3,6 +3,8 @@
 
 /// Vmtest configuration.
 pub mod config;
+/// Contains user interface code.
+pub mod ui;
 /// Contains main vmtest logic.
 pub mod vmtest;
 

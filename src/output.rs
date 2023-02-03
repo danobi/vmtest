@@ -17,11 +17,6 @@ pub enum Output {
     /// Boot finished with provided with provided result
     BootEnd(Result<()>),
 
-    /// Starting to wait for QGA
-    WaitStart,
-    /// QGA waiting finished with provided result
-    WaitEnd(Result<()>),
-
     /// Setting up VM has begun
     SetupStart,
     /// Output related to setting up the VM

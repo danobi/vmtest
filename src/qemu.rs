@@ -611,10 +611,8 @@ impl Qemu {
             }
         };
         debug!("QMP info: {:#?}", qmp_info);
-        let _ = self.updates.send(Output::BootEnd(Ok(())));
 
         // Connect to QGA socket
-        let _ = self.updates.send(Output::WaitStart);
         let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm());
         stop.store(true, Ordering::SeqCst);
         let qga = match qga {
@@ -622,11 +620,11 @@ impl Qemu {
             Err(e) => {
                 let _ = self
                     .updates
-                    .send(Output::WaitEnd(Err(e).context("Failed to connect QGA")));
+                    .send(Output::BootEnd(Err(e).context("Failed to connect QGA")));
                 return;
             }
         };
-        let _ = self.updates.send(Output::WaitEnd(Ok(())));
+        let _ = self.updates.send(Output::BootEnd(Ok(())));
 
         // Mount shared directory inside guest
         let _ = self.updates.send(Output::SetupStart);

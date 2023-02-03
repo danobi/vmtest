@@ -156,20 +156,6 @@ impl Ui {
                         errors += 1;
                     }
                 }
-                Output::WaitStart => {
-                    stage = Stage::new(
-                        term.clone(),
-                        &heading("Waiting on userspace", 2),
-                        Some(stage),
-                    );
-                    stages += 1;
-                }
-                Output::WaitEnd(r) => {
-                    if let Err(e) = r {
-                        error_out_stage(&mut stage, e);
-                        errors += 1;
-                    }
-                }
                 Output::SetupStart => {
                     stage = Stage::new(term.clone(), &heading("Setting up VM", 2), Some(stage));
                     stages += 1;

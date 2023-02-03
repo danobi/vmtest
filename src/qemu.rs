@@ -533,10 +533,8 @@ impl Qemu {
 
     /// Run the target to completion
     ///
-    /// [`QemuResult`] is returned if command was successfully executed inside
-    /// the VM (saying nothing about if the command was semantically successful).
-    /// In other words, if the test harness was _able_ to execute the command,
-    /// we return `QemuResult`. If the harness failed, we return error.
+    /// Errors and return status are reported through the `updates` channel passed into the
+    /// constructor.
     pub fn run(mut self) {
         let _ = self.updates.send(Output::BootStart);
         let child = match self.process.spawn() {

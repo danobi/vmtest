@@ -9,6 +9,7 @@ license = "Apache-2.0"
 [dependencies]
 anyhow = "1.0.66"
 clap = { version = "4.0.26", features = ["derive"] }
+console = "0.15.5"
 env_logger = "0.9.3"
 itertools = "0.10.5"
 log = "0.4.17"

@@ -4,7 +4,7 @@ use std::sync::mpsc::Sender;
 
 use anyhow::{anyhow, bail, Context, Result};
 
-use crate::config::Config;
+use crate::config::{Config, Target};
 use crate::qemu::{Output, Qemu, QemuResult};
 
 /// Central vmtest data structure
@@ -89,6 +89,11 @@ impl Vmtest {
         } else {
             None
         }
+    }
+
+    /// Returns registered targets
+    pub fn targets(&self) -> &[Target] {
+        &self.config.target
     }
 
     /// Run a single target

@@ -1,10 +1,14 @@
+use std::cmp::min;
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 
-use console::Term;
+use anyhow::{anyhow, Error};
+use console::{style, Term};
 
 use crate::qemu::Output;
 use crate::vmtest::Vmtest;
+
+const WINDOW_LENGTH: usize = 5;
 
 /// Console UI
 ///
@@ -14,6 +18,109 @@ pub struct Ui {
     vmtest: Vmtest,
 }
 
+struct Stage {
+    term: Term,
+    lines: Vec<String>,
+    expand: bool,
+}
+
+impl Stage {
+    /// Start a new stage.
+    ///
+    /// We take ownership of the previous stage to control the drop order.
+    /// Without this, something like:
+    ///
+    ///         stage = Some(Stage::new(..));
+    ///
+    /// would cause the new stage to print its heading first. Then the old
+    /// stage's drop would clear the new stage's heading. Causing some
+    /// visual corruption.
+    ///
+    /// By taking ownership of the old stage, we defuse this footgun through
+    /// the API.
+    fn new(term: Term, heading: &str, previous: Option<Stage>) -> Self {
+        drop(previous);
+
+        // I don't see how writing to terminal could fail, but if it does,
+        // we have no choice but to panic anyways.
+        term.write_line(&format!("{}", style(heading).bold()))
+            .expect("Failed to write terminal");
+
+        Self {
+            term,
+            lines: Vec::new(),
+            expand: false,
+        }
+    }
+
+    /// Returns the current active window size
+    fn window_size(&self) -> usize {
+        min(self.lines.len(), WINDOW_LENGTH)
+    }
+
+    /// Add a line to the output window.
+    ///
+    /// If over the window size, older text will be cleared from the screen.
+    ///
+    /// Note we never expect printing to terminal to fail. Even if it did,
+    /// we'd have no choice but to panic, so panic.
+    fn print_line(&mut self, line: &str) {
+        // Clear previously visible lines
+        self.term.clear_last_lines(self.window_size()).unwrap();
+
+        // Compute new visible lines
+        self.lines.push(line.to_string());
+        // Unwrap should never fail b/c we're sizing with `min()`
+        let window = self.lines.windows(self.window_size()).last().unwrap();
+
+        // Print visible lines
+        for line in window {
+            self.term
+                .write_line(&format!("{}", style(line).dim()))
+                .unwrap();
+        }
+    }
+
+    /// If true, rather than clean up the output window, expand and show
+    /// all the cached output
+    ///
+    /// Typically used when an error is met.
+    fn expand(&mut self, b: bool) {
+        self.expand = b;
+    }
+}
+
+impl Drop for Stage {
+    fn drop(&mut self) {
+        self.term
+            .clear_last_lines(self.window_size())
+            .expect("Failed to clear terminal");
+
+        if self.expand {
+            for line in &self.lines {
+                self.term
+                    .write_line(&format!("{}", style(line).dim()))
+                    .expect("Failed to write terminal");
+            }
+        }
+    }
+}
+
+/// Returns an unstyled heading with provided depth
+fn heading(name: &str, depth: usize) -> String {
+    let mut h = "=> ".repeat(depth);
+    h += name;
+    h
+}
+
+/// Wraps erroring out a stage
+fn error_out_stage(stage: &mut Stage, err: &Error) {
+    // NB: use debug formatting to get full trace
+    let err = format!("{:?}", err);
+    stage.print_line(&format!("{}", style(&err).red()));
+    stage.expand(true);
+}
+
 impl Ui {
     /// Construct a new UI
     pub fn new(vmtest: Vmtest) -> Self {
@@ -21,8 +128,64 @@ impl Ui {
     }
 
     /// UI for a single target. Must be run on its own thread.
-    fn target_ui(_term: Term, _updates: Receiver<Output>, _target: String) {
-        unimplemented!();
+    fn target_ui(term: Term, updates: Receiver<Output>, target: String) {
+        let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
+
+        // Main state machine loop
+        loop {
+            let msg = match updates.recv() {
+                Ok(l) => l,
+                Err(_) => return,
+            };
+
+            match &msg {
+                Output::BootStart => {
+                    stage = Stage::new(term.clone(), &heading("Booting", 2), Some(stage))
+                }
+                Output::Boot(s) => stage.print_line(s),
+                Output::BootEnd(r) => {
+                    if let Err(e) = r {
+                        error_out_stage(&mut stage, e);
+                    }
+                }
+                Output::WaitStart => {
+                    stage = Stage::new(
+                        term.clone(),
+                        &heading("Waiting on userspace", 2),
+                        Some(stage),
+                    )
+                }
+                Output::WaitEnd(r) => {
+                    if let Err(e) = r {
+                        error_out_stage(&mut stage, e);
+                    }
+                }
+                Output::SetupStart => {
+                    stage = Stage::new(term.clone(), &heading("Setting up VM", 2), Some(stage))
+                }
+                Output::Setup(s) => stage.print_line(s),
+                Output::SetupEnd(r) => {
+                    if let Err(e) = r {
+                        error_out_stage(&mut stage, e);
+                    }
+                }
+                Output::CommandStart => {
+                    stage = Stage::new(term.clone(), &heading("Running command", 2), Some(stage))
+                }
+                Output::Command(s) => stage.print_line(s),
+                Output::CommandEnd(r) => match r {
+                    Ok(retval) => {
+                        if *retval != 0 {
+                            error_out_stage(
+                                &mut stage,
+                                &anyhow!("Command failed with exit code: {}", retval),
+                            );
+                        }
+                    }
+                    Err(e) => error_out_stage(&mut stage, e),
+                },
+            }
+        }
     }
 
     /// Run all the targets in the provided `vmtest`

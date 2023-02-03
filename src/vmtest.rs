@@ -5,7 +5,8 @@ use std::sync::mpsc::Sender;
 use anyhow::{anyhow, bail, Context, Result};
 
 use crate::config::{Config, Target};
-use crate::qemu::{Output, Qemu, QemuResult};
+use crate::output::Output;
+use crate::qemu::{Qemu, QemuResult};
 
 /// Central vmtest data structure
 pub struct Vmtest {

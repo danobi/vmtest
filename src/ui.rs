@@ -5,7 +5,7 @@ use std::thread;
 use anyhow::{anyhow, Error};
 use console::{style, Term};
 
-use crate::qemu::Output;
+use crate::output::Output;
 use crate::vmtest::Vmtest;
 
 const WINDOW_LENGTH: usize = 5;

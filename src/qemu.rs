@@ -1,11 +1,13 @@
 use std::env::consts::ARCH;
 use std::ffi::{OsStr, OsString};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::thread;
 use std::time;
 use std::time::Duration;
@@ -291,7 +293,7 @@ where
             .guest_exec_status(pid)
             .context("Failed to QGA guest-exec-status")?;
 
-        // Give the most recent output to UI
+        // Give the most recent output to receiver
         if let Some(stdout) = status.out_data {
             String::from_utf8_lossy(&stdout)
                 .lines()
@@ -531,13 +533,45 @@ impl Qemu {
         }
     }
 
+    /// Stream qemu stdout to the receiver.
+    ///
+    /// This typically contains the boot log which may be useful.
+    ///
+    /// Calling this function will spawn a thread that takes ownership
+    /// over the child's stdout and reads until `stop` is set.
+    ///
+    /// Note we may race with the caller and still output a few lines even
+    /// after the caller may already have transitioned output stages. That
+    /// shouldn't be too big of a deal -- just a few lines leakage visually.
+    fn stream_child_output(updates: Sender<Output>, child: &mut Child, stop: Arc<AtomicBool>) {
+        // unwrap() should never fail b/c we are capturing stdout
+        let stdout = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(stdout);
+
+        thread::spawn(move || {
+            while !stop.load(Ordering::SeqCst) {
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        // Remove newline
+                        line.pop();
+                        let _ = updates.send(Output::Boot(line));
+                    }
+                    Err(e) => debug!("Failed to read from qemu stdout: {}", e),
+                };
+            }
+        });
+    }
+
     /// Run the target to completion
     ///
     /// Errors and return status are reported through the `updates` channel passed into the
     /// constructor.
     pub fn run(mut self) {
         let _ = self.updates.send(Output::BootStart);
-        let child = match self.process.spawn() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut child = match self.process.spawn() {
             Ok(c) => c,
             Err(e) => {
                 let _ = self
@@ -546,6 +580,7 @@ impl Qemu {
                 return;
             }
         };
+        Self::stream_child_output(self.updates.clone(), &mut child, Arc::clone(&stop));
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, Self::child_cleanup);
 
@@ -580,7 +615,9 @@ impl Qemu {
 
         // Connect to QGA socket
         let _ = self.updates.send(Output::WaitStart);
-        let qga = match QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm()) {
+        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm());
+        stop.store(true, Ordering::SeqCst);
+        let qga = match qga {
             Ok(q) => q,
             Err(e) => {
                 let _ = self

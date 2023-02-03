@@ -3,7 +3,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 
 use anyhow::{anyhow, Error};
-use console::{style, Term};
+use console::{strip_ansi_codes, style, Term};
 
 use crate::output::Output;
 use crate::vmtest::Vmtest;
@@ -75,7 +75,8 @@ impl Stage {
         clear_last_lines(&self.term, self.window_size());
 
         // Compute new visible lines
-        self.lines.push(line.to_string());
+        let stripped_line = strip_ansi_codes(line);
+        self.lines.push(stripped_line.to_string());
         // Unwrap should never fail b/c we're sizing with `min()`
         let window = self.lines.windows(self.window_size()).last().unwrap();
 

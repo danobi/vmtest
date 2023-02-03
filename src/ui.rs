@@ -127,8 +127,7 @@ impl Ui {
 
     /// UI for a single target. Must be run on its own thread.
     fn target_ui(term: Term, updates: Receiver<Output>, target: String) {
-        let target_heading = style(&heading(&target, 1)).bold().to_string();
-        let mut stage = Stage::new(term.clone(), &target_heading, None);
+        let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
         let mut stages = 0;
         let mut errors = 0;
 

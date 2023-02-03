@@ -199,9 +199,13 @@ impl Ui {
             }
         }
 
+        // Force stage cleanup so we can do final fixup if we want
+        drop(stage);
+
         // Only clear target stages if target was successful
         if errors == 0 {
             term.clear_last_lines(stages).unwrap();
+            term.write_line("PASS").expect("Failed to write terminal");
         }
     }
 

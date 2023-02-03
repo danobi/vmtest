@@ -131,7 +131,8 @@ impl Ui {
     }
 
     /// UI for a single target. Must be run on its own thread.
-    fn target_ui(term: Term, updates: Receiver<Output>, target: String) {
+    fn target_ui(updates: Receiver<Output>, target: String) {
+        let term = Term::stdout();
         let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
         let mut stages = 0;
         let mut errors = 0;
@@ -205,14 +206,12 @@ impl Ui {
     /// Note this function is "infallible" b/c on error it will display
     /// the appropriate error message to screen.
     pub fn run(self) {
-        let term = Term::stdout();
         for (idx, target) in self.vmtest.targets().iter().enumerate() {
             let (sender, receiver) = channel::<Output>();
 
             // Start UI on its own thread b/c `Vmtest::run_one()` will block
             let name = target.name.clone();
-            let term_clone = term.clone();
-            let ui = thread::spawn(move || Self::target_ui(term_clone, receiver, name));
+            let ui = thread::spawn(move || Self::target_ui(receiver, name));
 
             // Run a target
             self.vmtest.run_one(idx, sender);

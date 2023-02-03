@@ -43,8 +43,7 @@ impl Stage {
 
         // I don't see how writing to terminal could fail, but if it does,
         // we have no choice but to panic anyways.
-        term.write_line(&format!("{}", style(heading).bold()))
-            .expect("Failed to write terminal");
+        term.write_line(heading).expect("Failed to write terminal");
 
         Self {
             term,
@@ -108,9 +107,8 @@ impl Drop for Stage {
 
 /// Returns an unstyled heading with provided depth
 fn heading(name: &str, depth: usize) -> String {
-    let mut h = "=> ".repeat(depth);
-    h += name;
-    h
+    let middle = "=".repeat((depth - 1) * 2);
+    format!("={}> {}", middle, name)
 }
 
 /// Wraps erroring out a stage
@@ -129,23 +127,29 @@ impl Ui {
 
     /// UI for a single target. Must be run on its own thread.
     fn target_ui(term: Term, updates: Receiver<Output>, target: String) {
-        let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
+        let target_heading = style(&heading(&target, 1)).bold().to_string();
+        let mut stage = Stage::new(term.clone(), &target_heading, None);
+        let mut stages = 0;
+        let mut errors = 0;
 
         // Main state machine loop
         loop {
             let msg = match updates.recv() {
                 Ok(l) => l,
-                Err(_) => return,
+                // Qemu hangs up when done
+                Err(_) => break,
             };
 
             match &msg {
                 Output::BootStart => {
-                    stage = Stage::new(term.clone(), &heading("Booting", 2), Some(stage))
+                    stage = Stage::new(term.clone(), &heading("Booting", 2), Some(stage));
+                    stages += 1;
                 }
                 Output::Boot(s) => stage.print_line(s),
                 Output::BootEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
+                        errors += 1;
                     }
                 }
                 Output::WaitStart => {
@@ -153,24 +157,29 @@ impl Ui {
                         term.clone(),
                         &heading("Waiting on userspace", 2),
                         Some(stage),
-                    )
+                    );
+                    stages += 1;
                 }
                 Output::WaitEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
+                        errors += 1;
                     }
                 }
                 Output::SetupStart => {
-                    stage = Stage::new(term.clone(), &heading("Setting up VM", 2), Some(stage))
+                    stage = Stage::new(term.clone(), &heading("Setting up VM", 2), Some(stage));
+                    stages += 1;
                 }
                 Output::Setup(s) => stage.print_line(s),
                 Output::SetupEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
+                        errors += 1;
                     }
                 }
                 Output::CommandStart => {
-                    stage = Stage::new(term.clone(), &heading("Running command", 2), Some(stage))
+                    stage = Stage::new(term.clone(), &heading("Running command", 2), Some(stage));
+                    stages += 1;
                 }
                 Output::Command(s) => stage.print_line(s),
                 Output::CommandEnd(r) => match r {
@@ -180,11 +189,20 @@ impl Ui {
                                 &mut stage,
                                 &anyhow!("Command failed with exit code: {}", retval),
                             );
+                            errors += 1;
                         }
                     }
-                    Err(e) => error_out_stage(&mut stage, e),
+                    Err(e) => {
+                        error_out_stage(&mut stage, e);
+                        errors += 1;
+                    }
                 },
             }
+        }
+
+        // Only clear target stages if target was successful
+        if errors == 0 {
+            term.clear_last_lines(stages).unwrap();
         }
     }
 

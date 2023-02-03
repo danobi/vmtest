@@ -1,6 +1,5 @@
 use std::env::consts::ARCH;
 use std::ffi::{OsStr, OsString};
-use std::fmt;
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
@@ -44,20 +43,6 @@ pub struct Qemu {
     command: String,
     _init: NamedTempFile,
     updates: Sender<Output>,
-}
-
-/// This struct contains the result of the qemu command execution.
-///
-/// The command could have succeeded or failed _inside_ the VM --
-/// it is up for caller to interpret the contents of this struct.
-#[derive(Debug, Default)]
-pub struct QemuResult {
-    /// Return code of command
-    pub exitcode: i64,
-    /// Stdout of command
-    pub stdout: String,
-    /// Stderr of command
-    pub stderr: String,
 }
 
 const QEMU_DEFAULT_ARGS: &[&str] = &[
@@ -279,7 +264,12 @@ fn kernel_args(kernel: &Path, init: &Path) -> Vec<OsString> {
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
 /// `/bin/bash -c '...'`
-fn run_in_vm(qga: &QgaWrapper, cmd: &str, args: &[&str]) -> Result<QemuResult> {
+///
+/// Returns the exit code if command is run
+fn run_in_vm<F>(qga: &QgaWrapper, output: F, cmd: &str, args: &[&str]) -> Result<i64>
+where
+    F: Fn(String),
+{
     let qga_args = qga::guest_exec {
         path: cmd.to_string(),
         arg: Some(args.iter().map(|a| a.to_string()).collect()),
@@ -294,13 +284,47 @@ fn run_in_vm(qga: &QgaWrapper, cmd: &str, args: &[&str]) -> Result<QemuResult> {
 
     let now = time::Instant::now();
     let mut period = Duration::from_millis(100);
-    let status = loop {
+    let mut stdout_pos = 0;
+    let mut stderr_pos = 0;
+    let rc = loop {
         let status = qga
             .guest_exec_status(pid)
             .context("Failed to QGA guest-exec-status")?;
 
+        // Give the most recent output to UI
+        if let Some(stdout) = status.out_data {
+            String::from_utf8_lossy(&stdout)
+                .lines()
+                .skip(stdout_pos)
+                .for_each(|line| {
+                    output(line.to_string());
+                    stdout_pos += 1;
+                })
+        }
+        if let Some(t) = status.out_truncated {
+            if t {
+                output("<stdout truncation>".to_string());
+            }
+        }
+        // Note we give stderr last as error messages are usually towards
+        // the end of command output (if not the final line)
+        if let Some(stderr) = status.err_data {
+            String::from_utf8_lossy(&stderr)
+                .lines()
+                .skip(stderr_pos)
+                .for_each(|line| {
+                    output(line.to_string());
+                    stderr_pos += 1;
+                })
+        }
+        if let Some(t) = status.err_truncated {
+            if t {
+                output("<stderr truncation>".to_string());
+            }
+        }
+
         if status.exited {
-            break status;
+            break status.exitcode.unwrap_or(0);
         }
 
         // Exponential backoff up to 5s so we don't poll too frequently
@@ -320,34 +344,7 @@ fn run_in_vm(qga: &QgaWrapper, cmd: &str, args: &[&str]) -> Result<QemuResult> {
         thread::sleep(period);
     };
 
-    let mut result = QemuResult::default();
-    if let Some(code) = status.exitcode {
-        result.exitcode = code;
-    } else {
-        warn!("Command '{cmd}' exitcode unknown");
-    }
-    if let Some(stdout) = status.out_data {
-        result.stdout = String::from_utf8_lossy(&stdout).to_string();
-    } else {
-        debug!("Command '{cmd}' stdout missing")
-    }
-    if let Some(t) = status.out_truncated {
-        if t {
-            warn!("'{cmd}' stdout truncated");
-        }
-    }
-    if let Some(stderr) = status.err_data {
-        result.stderr = String::from_utf8_lossy(&stderr).to_string();
-    } else {
-        debug!("Command '{cmd}' stderr missing")
-    }
-    if let Some(t) = status.err_truncated {
-        if t {
-            warn!("'{cmd}' stderr truncated");
-        }
-    }
-
-    Ok(result)
+    Ok(rc)
 }
 
 impl Qemu {
@@ -442,11 +439,14 @@ impl Qemu {
     }
 
     /// Run this target's command inside the VM
-    fn run_command(&self, qga: &QgaWrapper) -> Result<QemuResult> {
+    fn run_command(&self, qga: &QgaWrapper) -> Result<i64> {
         let parts = shell_words::split(&self.command).context("Failed to shell split command")?;
         // This is checked during config validation
         assert!(!parts.is_empty());
 
+        let output_fn = |line: String| {
+            let _ = self.updates.send(Output::Command(line));
+        };
         let cmd = &parts[0];
         let args: Vec<&str> = parts
             .get(1..)
@@ -455,18 +455,23 @@ impl Qemu {
             .map(|s| -> &str { s.as_ref() })
             .collect();
 
-        run_in_vm(qga, cmd, &args)
+        run_in_vm(qga, output_fn, cmd, &args)
     }
 
     /// Mount shared directory in the guest
     fn mount_shared(&self, qga: &QgaWrapper) -> Result<()> {
-        let mkdir = run_in_vm(qga, "/bin/mkdir", &["-p", "/mnt/vmtest"])?;
-        if mkdir.exitcode != 0 {
-            bail!("Failed to mkdir /mnt/vmtest: {}", mkdir);
+        let output_fn = |line: String| {
+            let _ = self.updates.send(Output::Setup(line));
+        };
+
+        let rc = run_in_vm(qga, output_fn, "/bin/mkdir", &["-p", "/mnt/vmtest"])?;
+        if rc != 0 {
+            bail!("Failed to mkdir /mnt/vmtest: exit code {}", rc);
         }
 
-        let mount = run_in_vm(
+        let rc = run_in_vm(
             qga,
+            output_fn,
             "/bin/mount",
             &[
                 "-t",
@@ -477,8 +482,8 @@ impl Qemu {
                 "/mnt/vmtest",
             ],
         )?;
-        if mount.exitcode != 0 {
-            bail!("Failed to mount /mnt/vmtest: {}", mount);
+        if rc != 0 {
+            bail!("Failed to mount /mnt/vmtest: exit code {}", rc);
         }
 
         Ok(())
@@ -600,11 +605,16 @@ impl Qemu {
 
         // Run command in VM
         let _ = self.updates.send(Output::CommandStart);
-        if let Err(e) = self.run_command(&qga) {
-            let _ = self
-                .updates
-                .send(Output::CommandEnd(Err(e).context("Failed to run command")));
-            return;
+        match self.run_command(&qga) {
+            Ok(rc) => {
+                let _ = self.updates.send(Output::CommandEnd(Ok(rc)));
+            }
+            Err(e) => {
+                let _ = self
+                    .updates
+                    .send(Output::CommandEnd(Err(e).context("Failed to run command")));
+                return;
+            }
         }
 
         // Quit and wait for QEMU to exit
@@ -616,19 +626,5 @@ impl Qemu {
             // TODO(dxu): debug why we are getting errors here
             Err(e) => debug!("Failed to gracefull quit QEMU: {e}"),
         }
-    }
-}
-
-impl fmt::Display for QemuResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Exit code: {}", self.exitcode)?;
-        if !self.stdout.is_empty() {
-            writeln!(f, "Stdout:\n{}", self.stdout)?;
-        }
-        if !self.stderr.is_empty() {
-            writeln!(f, "Stderr:\n{}", self.stderr)?;
-        }
-
-        Ok(())
     }
 }

@@ -117,7 +117,7 @@ fn heading(name: &str, depth: usize) -> String {
 fn error_out_stage(stage: &mut Stage, err: &Error) {
     // NB: use debug formatting to get full trace
     let err = format!("{:?}", err);
-    stage.print_line(&format!("{}", style(&err).red()));
+    stage.print_line(&format!("{}", style(&err).red().bright()));
     stage.expand(true);
 }
 

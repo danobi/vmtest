@@ -283,7 +283,7 @@ where
     let pid = handle.pid;
 
     let now = time::Instant::now();
-    let mut period = Duration::from_millis(100);
+    let mut period = Duration::from_millis(200);
     let mut stdout_pos = 0;
     let mut stderr_pos = 0;
     let rc = loop {

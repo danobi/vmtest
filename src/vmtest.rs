@@ -6,7 +6,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use crate::config::{Config, Target};
 use crate::output::Output;
-use crate::qemu::{Qemu, QemuResult};
+use crate::qemu::Qemu;
 
 /// Central vmtest data structure
 pub struct Vmtest {
@@ -97,13 +97,8 @@ impl Vmtest {
         &self.config.target
     }
 
-    /// Run a single target
-    ///
-    /// `idx` is the position of the target in the target list (0-indexed).
-    ///
-    /// `updates` is the channel real time updates should be sent to. See
-    /// [`Output`] docs for more details.
-    pub fn run_one(&self, idx: usize, updates: Sender<Output>) -> Result<QemuResult> {
+    /// Setups up a `Qemu` instance for a run
+    fn setup_qemu(&self, idx: usize, updates: Sender<Output>) -> Result<Qemu> {
         let target = self
             .config
             .target
@@ -120,8 +115,21 @@ impl Vmtest {
             &self.base,
             target.uefi,
         )
-        .context("Failed to setup QEMU")?
-        .run()
-        .context("Failed to run QEMU")
+        .context("Failed to setup QEMU")
+    }
+
+    /// Run a single target
+    ///
+    /// `idx` is the position of the target in the target list (0-indexed).
+    ///
+    /// `updates` is the channel real time updates should be sent to. See
+    /// [`Output`] docs for more details.
+    pub fn run_one(&self, idx: usize, updates: Sender<Output>) {
+        match self.setup_qemu(idx, updates.clone()) {
+            Ok(q) => q.run(),
+            Err(e) => {
+                let _ = updates.send(Output::BootEnd(Err(e)));
+            }
+        };
     }
 }

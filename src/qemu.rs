@@ -43,6 +43,7 @@ pub struct Qemu {
     qmp_sock: PathBuf,
     command: String,
     _init: NamedTempFile,
+    updates: Sender<Output>,
 }
 
 /// This struct contains the result of the qemu command execution.
@@ -354,7 +355,7 @@ impl Qemu {
     ///
     /// Does not run anything yet.
     pub fn new(
-        _updates: Sender<Output>,
+        updates: Sender<Output>,
         image: Option<&Path>,
         kernel: Option<&Path>,
         command: &str,
@@ -408,6 +409,7 @@ impl Qemu {
             qmp_sock,
             command: command.to_string(),
             _init: init,
+            updates,
         })
     }
 
@@ -530,42 +532,90 @@ impl Qemu {
     /// the VM (saying nothing about if the command was semantically successful).
     /// In other words, if the test harness was _able_ to execute the command,
     /// we return `QemuResult`. If the harness failed, we return error.
-    pub fn run(mut self) -> Result<QemuResult> {
-        let child = self.process.spawn().context("Failed to spawn process")?;
+    pub fn run(mut self) {
+        let _ = self.updates.send(Output::BootStart);
+        let child = match self.process.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = self
+                    .updates
+                    .send(Output::BootEnd(Err(e).context("Failed to spawn process")));
+                return;
+            }
+        };
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, Self::child_cleanup);
 
-        self.wait_for_qemu(None)
-            .context("Failed waiting for QEMU to be ready")?;
+        if let Err(e) = self.wait_for_qemu(None) {
+            let _ = self.updates.send(Output::BootEnd(
+                Err(e).context("Failed waiting for QEMU to be ready"),
+            ));
+        }
 
         // Connect to QMP socket
-        let qmp_stream = UnixStream::connect(&self.qmp_sock).context("Failed to connect QMP")?;
+        let qmp_stream = match UnixStream::connect(&self.qmp_sock) {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = self
+                    .updates
+                    .send(Output::BootEnd(Err(e).context("Failed to connect QMP")));
+                return;
+            }
+        };
         let mut qmp = Qmp::from_stream(&qmp_stream);
-        let qmp_info = qmp.handshake().context("QMP handshake failed")?;
+        let qmp_info = match qmp.handshake() {
+            Ok(i) => i,
+            Err(e) => {
+                let _ = self
+                    .updates
+                    .send(Output::BootEnd(Err(e).context("QMP handshake failed")));
+                return;
+            }
+        };
         debug!("QMP info: {:#?}", qmp_info);
+        let _ = self.updates.send(Output::BootEnd(Ok(())));
 
         // Connect to QGA socket
-        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm())
-            .context("Failed to connect QGA")?;
+        let _ = self.updates.send(Output::WaitStart);
+        let qga = match QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm()) {
+            Ok(q) => q,
+            Err(e) => {
+                let _ = self
+                    .updates
+                    .send(Output::WaitEnd(Err(e).context("Failed to connect QGA")));
+                return;
+            }
+        };
+        let _ = self.updates.send(Output::WaitEnd(Ok(())));
 
         // Mount shared directory inside guest
-        self.mount_shared(&qga)
-            .context("Failed to mount shared directory in guest")?;
+        let _ = self.updates.send(Output::SetupStart);
+        if let Err(e) = self.mount_shared(&qga) {
+            let _ = self.updates.send(Output::SetupEnd(
+                Err(e).context("Failed to mount shared directory in guest"),
+            ));
+            return;
+        }
+        let _ = self.updates.send(Output::SetupEnd(Ok(())));
 
         // Run command in VM
-        let qemu_result = self.run_command(&qga).context("Failed to run command")?;
+        let _ = self.updates.send(Output::CommandStart);
+        if let Err(e) = self.run_command(&qga) {
+            let _ = self
+                .updates
+                .send(Output::CommandEnd(Err(e).context("Failed to run command")));
+            return;
+        }
 
         // Quit and wait for QEMU to exit
         match qmp.execute(&qmp::quit {}) {
-            Ok(_) => {
-                let status = child.wait().context("Failed to wait on child")?;
-                debug!("Exit code: {:?}", status.code());
-            }
+            Ok(_) => match child.wait() {
+                Ok(s) => debug!("Exit code: {:?}", s.code()),
+                Err(e) => warn!("Failed to wait on child: {}", e),
+            },
             // TODO(dxu): debug why we are getting errors here
             Err(e) => debug!("Failed to gracefull quit QEMU: {e}"),
         }
-
-        Ok(qemu_result)
     }
 }
 

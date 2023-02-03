@@ -202,10 +202,8 @@ impl Ui {
             let term_clone = term.clone();
             let ui = thread::spawn(move || Self::target_ui(term_clone, receiver, name));
 
-            // Run a taget
-            self.vmtest
-                .run_one(idx, sender)
-                .expect("XXX make this infallible");
+            // Run a target
+            self.vmtest.run_one(idx, sender);
 
             // UI thread does not return errors; they get printed to console
             let _ = ui.join();

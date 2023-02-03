@@ -24,6 +24,13 @@ struct Stage {
     expand: bool,
 }
 
+/// Helper to clear lines depending on whether or not a tty is attached
+fn clear_last_lines(term: &Term, n: usize) {
+    if term.features().is_attended() {
+        term.clear_last_lines(n).unwrap();
+    }
+}
+
 impl Stage {
     /// Start a new stage.
     ///
@@ -65,7 +72,7 @@ impl Stage {
     /// we'd have no choice but to panic, so panic.
     fn print_line(&mut self, line: &str) {
         // Clear previously visible lines
-        self.term.clear_last_lines(self.window_size()).unwrap();
+        clear_last_lines(&self.term, self.window_size());
 
         // Compute new visible lines
         self.lines.push(line.to_string());
@@ -91,11 +98,8 @@ impl Stage {
 
 impl Drop for Stage {
     fn drop(&mut self) {
-        self.term
-            .clear_last_lines(self.window_size())
-            .expect("Failed to clear terminal");
-
-        if self.expand {
+        clear_last_lines(&self.term, self.window_size());
+        if self.expand && self.term.features().is_attended() {
             for line in &self.lines {
                 self.term
                     .write_line(&format!("{}", style(line).dim()))
@@ -204,7 +208,7 @@ impl Ui {
 
         // Only clear target stages if target was successful
         if errors == 0 {
-            term.clear_last_lines(stages).unwrap();
+            clear_last_lines(&term, stages);
             term.write_line("PASS").expect("Failed to write terminal");
         }
     }

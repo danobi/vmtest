@@ -9,6 +9,7 @@ pub mod ui;
 pub mod vmtest;
 
 pub use crate::config::*;
+pub use crate::ui::*;
 pub use crate::vmtest::*;
 
 mod qemu;

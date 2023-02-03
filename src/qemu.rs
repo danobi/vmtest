@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time;
 use std::time::Duration;
@@ -389,6 +390,7 @@ impl Qemu {
     ///
     /// Does not run anything yet.
     pub fn new(
+        _updates: Sender<Output>,
         image: Option<&Path>,
         kernel: Option<&Path>,
         command: &str,

@@ -1,10 +1,11 @@
 use std::convert::AsRef;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
 
 use anyhow::{anyhow, bail, Context, Result};
 
 use crate::config::Config;
-use crate::qemu::{Qemu, QemuResult};
+use crate::qemu::{Output, Qemu, QemuResult};
 
 /// Central vmtest data structure
 pub struct Vmtest {
@@ -92,8 +93,11 @@ impl Vmtest {
 
     /// Run a single target
     ///
-    /// `idx` is the position of the target in the target list (0-indexed)
-    pub fn run_one(&self, idx: usize) -> Result<QemuResult> {
+    /// `idx` is the position of the target in the target list (0-indexed).
+    ///
+    /// `updates` is the channel real time updates should be sent to. See
+    /// [`Output`] docs for more details.
+    pub fn run_one(&self, idx: usize, updates: Sender<Output>) -> Result<QemuResult> {
         let target = self
             .config
             .target
@@ -103,6 +107,7 @@ impl Vmtest {
         let kernel = self.resolve_path(target.kernel.as_deref());
 
         Qemu::new(
+            updates,
             image.as_deref(),
             kernel.as_deref(),
             &target.command,
@@ -112,37 +117,5 @@ impl Vmtest {
         .context("Failed to setup QEMU")?
         .run()
         .context("Failed to run QEMU")
-    }
-
-    /// Convenience wrapper to run entire test matrix
-    ///
-    /// Note this method prints results to stdout/stderr
-    pub fn run(&self) -> Result<()> {
-        let mut failed = 0;
-        for (idx, target) in self.config.target.iter().enumerate() {
-            let title = format!("Target '{}' results:", target.name);
-            println!("{}", title);
-            println!("{}", "=".repeat(title.len()));
-
-            match self.run_one(idx) {
-                Ok(result) => {
-                    println!("{}", result);
-                    if result.exitcode != 0 {
-                        failed += 1;
-                    }
-                }
-                Err(e) => {
-                    // NB: need to use debug formatting to get full error chain
-                    eprintln!("Failed to run: {:?}", e);
-                    failed += 1;
-                }
-            };
-        }
-
-        if failed > 0 {
-            bail!("{} targets failed", failed);
-        }
-
-        Ok(())
     }
 }

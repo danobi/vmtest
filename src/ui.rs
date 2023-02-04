@@ -3,7 +3,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 
 use anyhow::{anyhow, Error};
-use console::{strip_ansi_codes, style, truncate_str, Term};
+use console::{strip_ansi_codes, style, truncate_str, Style, Term};
 
 use crate::output::Output;
 use crate::vmtest::Vmtest;
@@ -70,13 +70,17 @@ impl Stage {
     ///
     /// Note we never expect printing to terminal to fail. Even if it did,
     /// we'd have no choice but to panic, so panic.
-    fn print_line(&mut self, line: &str) {
+    fn print_line(&mut self, line: &str, custom: Option<Style>) {
         // Clear previously visible lines
         clear_last_lines(&self.term, self.window_size());
 
         // Compute new visible lines
         let stripped_line = strip_ansi_codes(line);
-        self.lines.push(stripped_line.to_string());
+        let styled_line = match &custom {
+            Some(s) => s.apply_to(stripped_line),
+            None => style(stripped_line).dim(),
+        };
+        self.lines.push(styled_line.to_string());
         // Unwrap should never fail b/c we're sizing with `min()`
         let window = self.lines.windows(self.window_size()).last().unwrap();
 
@@ -89,9 +93,7 @@ impl Stage {
         // Print visible lines
         for line in window {
             let clipped = truncate_str(line, width as usize - 3, "...");
-            self.term
-                .write_line(&format!("{}", style(clipped).dim()))
-                .unwrap();
+            self.term.write_line(&format!("{}", clipped)).unwrap();
         }
     }
 
@@ -110,7 +112,7 @@ impl Drop for Stage {
         if self.expand && self.term.features().is_attended() {
             for line in &self.lines {
                 self.term
-                    .write_line(&format!("{}", style(line).dim()))
+                    .write_line(line)
                     .expect("Failed to write terminal");
             }
         }
@@ -127,7 +129,7 @@ fn heading(name: &str, depth: usize) -> String {
 fn error_out_stage(stage: &mut Stage, err: &Error) {
     // NB: use debug formatting to get full trace
     let err = format!("{:?}", err);
-    stage.print_line(&format!("{}", style(&err).red().bright()));
+    stage.print_line(&err, Some(Style::new().red().bright()));
     stage.expand(true);
 }
 
@@ -157,7 +159,7 @@ impl Ui {
                     stage = Stage::new(term.clone(), &heading("Booting", 2), Some(stage));
                     stages += 1;
                 }
-                Output::Boot(s) => stage.print_line(s),
+                Output::Boot(s) => stage.print_line(s, None),
                 Output::BootEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
@@ -168,7 +170,7 @@ impl Ui {
                     stage = Stage::new(term.clone(), &heading("Setting up VM", 2), Some(stage));
                     stages += 1;
                 }
-                Output::Setup(s) => stage.print_line(s),
+                Output::Setup(s) => stage.print_line(s, None),
                 Output::SetupEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
@@ -179,7 +181,7 @@ impl Ui {
                     stage = Stage::new(term.clone(), &heading("Running command", 2), Some(stage));
                     stages += 1;
                 }
-                Output::Command(s) => stage.print_line(s),
+                Output::Command(s) => stage.print_line(s, None),
                 Output::CommandEnd(r) => match r {
                     Ok(retval) => {
                         if *retval != 0 {

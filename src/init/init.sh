@@ -63,6 +63,12 @@ ln -s /var/run ../run
 log "Mounting sysfs at /sys"
 mount -t sysfs -o nosuid,nodev,noexec sys /sys
 
+log "Mounting debugfs at /sys/kernel/debug"
+mount -t debugfs debugfs /sys/kernel/debug
+
+log "Mounting tracefs at /sys/kernel/debug/tracing"
+mount -t tracefs tracefs /sys/kernel/debug/tracing
+
 log "Mounting cgroup2 at /sys/fs/cgroup"
 mount -t cgroup2 -o nosuid,nodev,noexec cgroup2 /sys/fs/cgroup
 

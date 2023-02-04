@@ -8,7 +8,7 @@ use console::{strip_ansi_codes, style, truncate_str, Style, Term};
 use crate::output::Output;
 use crate::vmtest::Vmtest;
 
-const WINDOW_LENGTH: usize = 5;
+const WINDOW_LENGTH: usize = 10;
 
 /// Console UI
 ///

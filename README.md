@@ -22,7 +22,7 @@ Host machine:
 
 * [`qemu`](https://pkgs.org/download/qemu)
 * [`qemu-guest-agent`](https://pkgs.org/search/?q=qemu-guest-agent)
-* [`OVMF`](https://pkgs.org/download/ovmf) (if using `uefi` target parameter)
+* [`OVMF`](https://pkgs.org/download/ovmf)
 
 Virtual machine image:
 
@@ -59,7 +59,7 @@ command = "/bin/bash -c 'uname -r | grep -e aws$'"
 [[target]]
 name = "OCI image"
 image = "./oci-stage-6/oci-stage-6-disk001.qcow2"
-command = "/bin/ls -l /mnt/vmtest"
+command = "/bin/bash -c 'ls -l /mnt/vmtest && cat /proc/thiswillfail'"
 ```
 
 In the above config, two see two defined targets: "AWS kernel" and "OCI image".
@@ -79,21 +79,19 @@ Running vmtest with the above config yields the following results:
 
 ```
 $ vmtest
-Target 'AWS kernel' results:
-============================
-Exit code: 0
-Stdout:
-5.15.0-1022-aws-avx1
-
-
-Target 'OCI image' results:
-===========================
-Exit code: 0
-Stdout:
-total 2057880
-drwxr-xr-x 1 ubuntu ubuntu        200 Nov 14 20:41 oci-stage-6
+=> AWS kernel
+PASS
+=> OCI image
+===> Booting
+===> Setting up VM
+===> Running command
+total 2057916
+drwxr-xr-x 1 ubuntu ubuntu        200 Nov 14 20:41 avx-gateway-oci-stage-6
 -rw-r--r-- 1 ubuntu ubuntu   11631520 Feb  1 00:33 bzImage-5.15.0-1022-aws
--rw-r--r-- 1 ubuntu ubuntu        221 Nov 18 23:21 vmtest.toml
+-rw-r--r-- 1 ubuntu ubuntu        359 Feb  4 01:41 vmtest.toml
+cat: /proc/thiswillfail: No such file or directory
+Command failed with exit code: 1
+FAILED
 ```
 
 ## Configuration

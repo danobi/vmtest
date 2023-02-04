@@ -3,7 +3,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 
 use anyhow::{anyhow, Error};
-use console::{strip_ansi_codes, style, Term};
+use console::{strip_ansi_codes, style, truncate_str, Term};
 
 use crate::output::Output;
 use crate::vmtest::Vmtest;
@@ -80,10 +80,17 @@ impl Stage {
         // Unwrap should never fail b/c we're sizing with `min()`
         let window = self.lines.windows(self.window_size()).last().unwrap();
 
+        // Get terminal width, if any
+        let width = match self.term.size_checked() {
+            Some((_, w)) => w,
+            _ => u16::MAX,
+        };
+
         // Print visible lines
         for line in window {
+            let clipped = truncate_str(line, width as usize - 3, "...");
             self.term
-                .write_line(&format!("{}", style(line).dim()))
+                .write_line(&format!("{}", style(clipped).dim()))
                 .unwrap();
         }
     }

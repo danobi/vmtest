@@ -62,8 +62,15 @@ impl Stage {
     }
 
     /// Returns the current active window size
+    ///
+    /// We kinda hack this to return 1 if we're not writing to terminal.
+    /// Should really find a cleaner solution.
     fn window_size(&self) -> usize {
-        min(self.lines.len(), WINDOW_LENGTH)
+        if self.term.features().is_attended() {
+            min(self.lines.len(), WINDOW_LENGTH)
+        } else {
+            min(self.lines.len(), 1)
+        }
     }
 
     /// Add a line to the output window.

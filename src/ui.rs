@@ -37,7 +37,9 @@ impl Stage {
     /// We take ownership of the previous stage to control the drop order.
     /// Without this, something like:
     ///
-    ///         stage = Some(Stage::new(..));
+    /// ```ignore
+    /// stage = Some(Stage::new(..));
+    /// ```
     ///
     /// would cause the new stage to print its heading first. Then the old
     /// stage's drop would clear the new stage's heading. Causing some

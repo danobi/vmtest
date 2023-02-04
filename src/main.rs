@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     let vmtest = Vmtest::new(base, config)?;
     let ui = Ui::new(vmtest);
     let failed = ui.run();
-    let rc = i32::from(failed == 0);
+    let rc = i32::from(failed != 0);
 
     exit(rc);
 }

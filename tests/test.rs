@@ -1,9 +1,13 @@
 use std::env;
 use std::fs;
+use std::mem::{discriminant, Discriminant};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{channel, Receiver};
 
 use test_log::test;
 
+use vmtest::output::Output;
+use vmtest::ui::Ui;
 use vmtest::vmtest::Vmtest;
 
 // Change working directory into integration test dir
@@ -25,11 +29,59 @@ fn vmtest(filename: &str) -> Vmtest {
     vmtest
 }
 
+fn found_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> bool {
+    let mut found_err = false;
+
+    loop {
+        let msg = match recv.recv() {
+            Ok(m) => m,
+            // Hangup means the end
+            Err(_) => break,
+        };
+
+        match msg {
+            Output::BootEnd(Err(_)) | Output::SetupEnd(Err(_)) | Output::CommandEnd(Err(_)) => {
+                if let Some(d) = disc {
+                    if discriminant(&msg) == d {
+                        found_err = true;
+                    }
+                } else {
+                    found_err = true;
+                }
+            }
+            Output::CommandEnd(Ok(rc)) => {
+                if let Some(d) = disc {
+                    if discriminant(&msg) == d && rc != 0 {
+                        found_err = true;
+                    }
+                } else if rc != 0 {
+                    found_err = true;
+                }
+            }
+            _ => (),
+        };
+    }
+
+    found_err
+}
+
+// Assert that an error has been received
+fn assert_error(recv: Receiver<Output>, disc: Discriminant<Output>) {
+    assert!(found_error(recv, Some(disc)));
+}
+
+// Assert that no errors hav been received
+fn assert_no_error(recv: Receiver<Output>) {
+    assert!(!found_error(recv, None));
+}
+
 // Expect that we can run the entire matrix successfully
 #[test]
 fn test_run() {
     let vmtest = vmtest("vmtest.toml.allgood");
-    vmtest.run().expect("Failed to vmtest.run()");
+    let ui = Ui::new(vmtest);
+    let failed = ui.run();
+    assert_eq!(failed, 0);
 }
 
 // Expect we can run each target one by one, sucessfully
@@ -37,11 +89,19 @@ fn test_run() {
 fn test_run_one() {
     let vmtest = vmtest("vmtest.toml.allgood");
     for i in 0..2 {
-        let result = vmtest.run_one(i).expect("Failed to vmtest.run_one()");
-        assert_eq!(result.exitcode, 0);
+        let (send, recv) = channel();
+        vmtest.run_one(i, send);
+        assert_no_error(recv);
     }
+}
 
-    vmtest.run_one(2).expect_err("Should only have 2 targets");
+// Expect that we have bounds checks
+#[test]
+fn test_run_out_of_bounds() {
+    let vmtest = vmtest("vmtest.toml.allgood");
+    let (send, recv) = channel();
+    vmtest.run_one(2, send);
+    assert_error(recv, discriminant(&Output::BootEnd(Ok(()))));
 }
 
 // The mkosi images only support UEFI boot. Expect that by not specifying
@@ -49,11 +109,11 @@ fn test_run_one() {
 #[test]
 fn test_not_uefi() {
     let vmtest = vmtest("vmtest.toml.notuefi");
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+    assert_error(recv, discriminant(&Output::BootEnd(Ok(()))));
 
-    vmtest
-        .run_one(0)
-        .expect_err("Not uefi image should have failed");
-
-    let result = vmtest.run_one(1).expect("uefi should succeed");
-    assert_eq!(result.exitcode, 0);
+    let (send, recv) = channel();
+    vmtest.run_one(1, send);
+    assert_no_error(recv);
 }

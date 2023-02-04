@@ -235,7 +235,10 @@ fn kernel_args(kernel: &Path, init: &Path) -> Vec<OsString> {
     // data transfer.
     cmdline.push("ro".into());
 
+    // Show as much console output as we can bear
+    cmdline.push("earlyprintk=serial,0,115200".into());
     cmdline.push("console=0,115200".into());
+    cmdline.push("loglevel=7".into());
 
     // We are not using RAID and this will help speed up boot
     cmdline.push("raid=noautodetect".into());

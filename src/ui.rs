@@ -73,11 +73,16 @@ impl Stage {
     /// Note we never expect printing to terminal to fail. Even if it did,
     /// we'd have no choice but to panic, so panic.
     fn print_line(&mut self, line: &str, custom: Option<Style>) {
+        // Caller must take care that `line` is indeed a single line
+        // Note we check <= 1 b/c an empty string is allowed but technically 0 lines.
+        assert!(line.lines().count() <= 1, "Multiple lines provided");
+
         // Clear previously visible lines
         clear_last_lines(&self.term, self.window_size());
 
         // Compute new visible lines
-        let stripped_line = strip_ansi_codes(line);
+        let trimmed_line = line.trim_end();
+        let stripped_line = strip_ansi_codes(trimmed_line);
         let styled_line = match &custom {
             Some(s) => s.apply_to(stripped_line),
             None => style(stripped_line).dim(),
@@ -131,7 +136,9 @@ fn heading(name: &str, depth: usize) -> String {
 fn error_out_stage(stage: &mut Stage, err: &Error) {
     // NB: use debug formatting to get full trace
     let err = format!("{:?}", err);
-    stage.print_line(&err, Some(Style::new().red().bright()));
+    for line in err.lines() {
+        stage.print_line(line, Some(Style::new().red().bright()));
+    }
     stage.expand(true);
 }
 

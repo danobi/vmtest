@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use std::process::exit;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -23,7 +24,8 @@ fn main() -> Result<()> {
     let base = args.config.parent().unwrap();
     let vmtest = Vmtest::new(base, config)?;
     let ui = Ui::new(vmtest);
-    ui.run();
+    let failed = ui.run();
+    let rc = if failed == 0 { 0 } else { 1 };
 
-    Ok(())
+    exit(rc);
 }

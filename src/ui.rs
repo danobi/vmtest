@@ -140,7 +140,9 @@ impl Ui {
     }
 
     /// UI for a single target. Must be run on its own thread.
-    fn target_ui(updates: Receiver<Output>, target: String) {
+    ///
+    /// Returns if the target was successful or not>
+    fn target_ui(updates: Receiver<Output>, target: String) -> bool {
         let term = Term::stdout();
         let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
         let mut stages = 0;
@@ -207,14 +209,20 @@ impl Ui {
         if errors == 0 {
             clear_last_lines(&term, stages);
             term.write_line("PASS").expect("Failed to write terminal");
+        } else {
+            term.write_line("FAILED").expect("Failed to write terminal");
         }
+
+        errors == 0
     }
 
     /// Run all the targets in the provided `vmtest`
     ///
     /// Note this function is "infallible" b/c on error it will display
-    /// the appropriate error message to screen.
-    pub fn run(self) {
+    /// the appropriate error message to screen. Rather, it returns how
+    /// many targets failed.
+    pub fn run(self) -> usize {
+        let mut failed = 0;
         for (idx, target) in self.vmtest.targets().iter().enumerate() {
             let (sender, receiver) = channel::<Output>();
 
@@ -225,8 +233,12 @@ impl Ui {
             // Run a target
             self.vmtest.run_one(idx, sender);
 
-            // UI thread does not return errors; they get printed to console
-            let _ = ui.join();
+            let success = ui.join().unwrap();
+            if !success {
+                failed += 1;
+            }
         }
+
+        failed
     }
 }

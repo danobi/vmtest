@@ -5,9 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
 use std::thread;
 use std::time;
 use std::time::Duration;
@@ -535,21 +533,20 @@ impl Qemu {
 
     /// Stream qemu stdout to the receiver.
     ///
-    /// This typically contains the boot log which may be useful.
+    /// This typically contains the boot log which may be useful. Note
+    /// we may generate "out of stage" output for the receiver. This is
+    /// unfortunate but crucial, as kernel crashes still need to be
+    /// reported.
     ///
     /// Calling this function will spawn a thread that takes ownership
-    /// over the child's stdout and reads until `stop` is set.
-    ///
-    /// Note we may race with the caller and still output a few lines even
-    /// after the caller may already have transitioned output stages. That
-    /// shouldn't be too big of a deal -- just a few lines leakage visually.
-    fn stream_child_output(updates: Sender<Output>, child: &mut Child, stop: Arc<AtomicBool>) {
+    /// over the child's stdout and reads until the the process exits.
+    fn stream_child_output(updates: Sender<Output>, child: &mut Child) {
         // unwrap() should never fail b/c we are capturing stdout
         let stdout = child.stdout.take().unwrap();
         let mut reader = BufReader::new(stdout);
 
         thread::spawn(move || {
-            while !stop.load(Ordering::SeqCst) {
+            loop {
                 let mut line = String::new();
                 match reader.read_line(&mut line) {
                     Ok(0) => break,
@@ -570,7 +567,6 @@ impl Qemu {
     /// constructor.
     pub fn run(mut self) {
         let _ = self.updates.send(Output::BootStart);
-        let stop = Arc::new(AtomicBool::new(false));
         let mut child = match self.process.spawn() {
             Ok(c) => c,
             Err(e) => {
@@ -580,7 +576,7 @@ impl Qemu {
                 return;
             }
         };
-        Self::stream_child_output(self.updates.clone(), &mut child, Arc::clone(&stop));
+        Self::stream_child_output(self.updates.clone(), &mut child);
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, Self::child_cleanup);
 
@@ -614,7 +610,6 @@ impl Qemu {
 
         // Connect to QGA socket
         let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm());
-        stop.store(true, Ordering::SeqCst);
         let qga = match qga {
             Ok(q) => q,
             Err(e) => {

@@ -1,5 +1,8 @@
 # vmtest
 
+[![CI](https://github.com/danobi/vmtest/actions/workflows/rust.yml/badge.svg)](https://github.com/danobi/vmtest/actions/workflows/rust.yml)
+[![crates.io](https://img.shields.io/crates/v/vmtest.svg)](https://crates.io/crates/vmtest)
+
 **Currently under active development. Feedback is welcome.**
 
 `vmtest` enables you to quickly and programmatically run tests inside a virtual
@@ -42,6 +45,15 @@ Kernel:
 Note the virtual machine image dependencies are only required if you're using
 the `image` target parameter. Likewise, the same applies for kernel
 dependencies.
+
+## Installation
+
+Assuming you have the [`Rust toolchain`](https://rustup.rs/) installed, simply
+run:
+
+```
+$ cargo install vmtest
+```
 
 ## Usage
 

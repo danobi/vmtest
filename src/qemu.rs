@@ -213,7 +213,7 @@ fn uefi_firmware_args() -> Vec<&'static str> {
 ///
 /// The basic idea is we'll map host root onto guest root. And then use
 /// the host's systemd as init but boot into `rescue.target` in the guest.
-fn kernel_args(kernel: &Path, init: &Path) -> Vec<OsString> {
+fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) -> Vec<OsString> {
     let mut args = Vec::new();
 
     // Set the guest kernel
@@ -257,6 +257,11 @@ fn kernel_args(kernel: &Path, init: &Path) -> Vec<OsString> {
     // Trigger an immediate reboot on panic.
     // When paired with above `-no-reboot`, this will cause qemu to exit
     cmdline.push("panic=-1".into());
+
+    // Append on additional kernel args
+    if let Some(kargs) = additional_kargs {
+        cmdline.extend(kargs.split_whitespace().map(|karg| OsStr::new(karg).into()));
+    }
 
     // Set host side qemu kernel command line
     args.push("-append".into());
@@ -360,6 +365,7 @@ impl Qemu {
         updates: Sender<Output>,
         image: Option<&Path>,
         kernel: Option<&Path>,
+        kargs: Option<&String>,
         command: &str,
         host_shared: &Path,
         uefi: bool,
@@ -391,7 +397,7 @@ impl Qemu {
                 "root",
                 ROOTFS_9P_FS_MOUNT_TAG,
             ));
-            c.args(kernel_args(kernel, init.path()));
+            c.args(kernel_args(kernel, init.path(), kargs));
         } else {
             panic!("Config validation should've enforced XOR");
         }

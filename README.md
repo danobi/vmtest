@@ -136,6 +136,11 @@ The following fields are supported:
     * Typically named `vmlinuz` or `bzImage`
     * If a relative path is provided, it will be interpreted as relative to
       `vmtest.toml`
+* `kernel_args` (string)
+    * Optional field
+    * `kernel` must be specified
+    * Additional kernel command line arguments to append to `vmtest` generated
+      kernel arguments
 * `command` (string)
     * Required field
     * Command to run inside VM

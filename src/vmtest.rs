@@ -42,6 +42,13 @@ fn validate_config(config: &Config) -> Result<()> {
             bail!("Target '{}' must specify 'image' with 'uefi'", target.name);
         }
 
+        if target.kernel_args.is_some() && target.kernel.is_none() {
+            bail!(
+                "Target '{}' must specify 'kernel' with 'kernel_args'",
+                target.name
+            );
+        }
+
         if let Some(image) = &target.image {
             if image.as_os_str().is_empty() {
                 bail!("Target '{}' has empty image path", target.name);
@@ -111,6 +118,7 @@ impl Vmtest {
             updates,
             image.as_deref(),
             kernel.as_deref(),
+            target.kernel_args.as_ref(),
             &target.command,
             &self.base,
             target.uefi,

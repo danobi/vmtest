@@ -23,6 +23,10 @@ pub struct Target {
     /// * The path is relative to `vmtest.toml`.
     /// * `vmlinux`, `vmlinuz`, and `bzImage` formats are accepted.
     pub kernel: Option<PathBuf>,
+    /// Additional kernel command line parameters.
+    ///
+    /// Arguments are only valid for kernel targets.
+    pub kernel_args: Option<String>,
     /// Command to run inside virtual machine.
     pub command: String,
 }

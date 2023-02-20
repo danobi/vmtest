@@ -237,6 +237,8 @@ fn kernel_args(kernel: &Path, init: &Path) -> Vec<OsString> {
 
     // Show as much console output as we can bear
     cmdline.push("earlyprintk=serial,0,115200".into());
+    // Disable userspace writing ratelimits
+    cmdline.push("printk.devkmsg=on".into());
     cmdline.push("console=0,115200".into());
     cmdline.push("loglevel=7".into());
 

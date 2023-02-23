@@ -65,7 +65,7 @@ For example, consider the following `vmtest.toml`:
 ```
 [[target]]
 name = "AWS kernel"
-kernel = "./bzImage-5.15.0-1022-aws
+kernel = "./bzImage-5.15.0-1022-aws"
 command = "/bin/bash -c 'uname -r | grep -e aws$'"
 
 [[target]]

@@ -4,6 +4,7 @@ use std::thread;
 
 use anyhow::{anyhow, Error};
 use console::{strip_ansi_codes, style, truncate_str, Style, Term};
+use regex::Regex;
 
 use crate::output::Output;
 use crate::vmtest::Vmtest;
@@ -237,9 +238,15 @@ impl Ui {
     /// Note this function is "infallible" b/c on error it will display
     /// the appropriate error message to screen. Rather, it returns how
     /// many targets failed.
-    pub fn run(self) -> usize {
+    pub fn run(self, filter: Regex) -> usize {
         let mut failed = 0;
-        for (idx, target) in self.vmtest.targets().iter().enumerate() {
+        for (idx, target) in self
+            .vmtest
+            .targets()
+            .iter()
+            .filter(|t| filter.is_match(&t.name))
+            .enumerate()
+        {
             let (sender, receiver) = channel::<Output>();
 
             // Start UI on its own thread b/c `Vmtest::run_one()` will block

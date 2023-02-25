@@ -621,6 +621,7 @@ dependencies = [
  "log",
  "qapi",
  "rand",
+ "regex",
  "scopeguard",
  "serde",
  "serde_derive",

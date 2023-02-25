@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let vmtest = Vmtest::new(base, config)?;
     let filter = Regex::new(&args.filter).context("Failed to compile regex")?;
     let ui = Ui::new(vmtest);
-    let failed = ui.run(filter);
+    let failed = ui.run(&filter);
     let rc = i32::from(failed != 0);
 
     exit(rc);

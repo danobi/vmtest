@@ -4,11 +4,17 @@ use std::mem::{discriminant, Discriminant};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver};
 
+use lazy_static::lazy_static;
+use regex::Regex;
 use test_log::test;
 
 use vmtest::output::Output;
 use vmtest::ui::Ui;
 use vmtest::vmtest::Vmtest;
+
+lazy_static! {
+    static ref FILTER_ALL: Regex = Regex::new(".*").unwrap();
+}
 
 // Change working directory into integration test dir
 fn chdir() -> PathBuf {
@@ -80,7 +86,7 @@ fn assert_no_error(recv: Receiver<Output>) {
 fn test_run() {
     let vmtest = vmtest("vmtest.toml.allgood");
     let ui = Ui::new(vmtest);
-    let failed = ui.run();
+    let failed = ui.run(&*FILTER_ALL);
     assert_eq!(failed, 0);
 }
 

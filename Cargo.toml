@@ -14,6 +14,7 @@ clap = { version = "4.0.26", features = ["derive"] }
 console = "0.15.5"
 env_logger = "0.9.3"
 itertools = "0.10.5"
+lazy_static = "1.4.0"
 log = "0.4.17"
 qapi = { version = "0.10.0", features = ["qmp", "qga"] }
 rand = "0.8.5"

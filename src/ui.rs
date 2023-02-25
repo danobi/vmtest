@@ -238,7 +238,7 @@ impl Ui {
     /// Note this function is "infallible" b/c on error it will display
     /// the appropriate error message to screen. Rather, it returns how
     /// many targets failed.
-    pub fn run(self, filter: Regex) -> usize {
+    pub fn run(self, filter: &Regex) -> usize {
         let mut failed = 0;
         for (idx, target) in self
             .vmtest

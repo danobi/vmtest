@@ -605,6 +605,7 @@ dependencies = [
  "console",
  "env_logger",
  "itertools",
+ "lazy_static",
  "log",
  "qapi",
  "rand",

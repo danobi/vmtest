@@ -12,7 +12,7 @@ use ::vmtest::{Ui, Vmtest};
 #[clap(version)]
 struct Args {
     /// Path to config file
-    #[clap(long, default_value = "vmtest.toml")]
+    #[clap(short, long, default_value = "vmtest.toml")]
     config: PathBuf,
     /// Filter by regex which targets to run
     ///
@@ -20,7 +20,7 @@ struct Args {
     /// expression, the target will be run.
     ///
     /// Supported regex syntax: https://docs.rs/regex/latest/regex/#syntax.
-    #[clap(long, default_value = ".*")]
+    #[clap(short, long, default_value = ".*")]
     filter: String,
 }
 

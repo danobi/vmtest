@@ -26,3 +26,6 @@ docker build \
 
 # Run builder
 docker run -v "$(pwd):/output" -it vmtest-kernel-builder-"$1"
+
+# Rename bzImage appropriately
+mv bzImage bzImage-"$1"

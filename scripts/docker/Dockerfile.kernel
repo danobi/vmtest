@@ -1,0 +1,33 @@
+FROM alpine:edge as kernel
+
+ARG KERNEL_REPO=https://github.com/torvalds/linux.git
+ARG KERNEL_TAG
+
+RUN apk update && apk add \
+  bash \
+  bison \
+  build-base \
+  diffutils \
+  elfutils-dev \
+  findutils \
+  flex \
+  git \
+  gzip \
+  linux-headers \
+  pahole \
+  perl \
+  python3 \
+  openssl \
+  openssl-dev \
+  xz
+
+WORKDIR /
+
+RUN git clone --depth 1 ${KERNEL_REPO} linux --branch ${KERNEL_TAG}
+WORKDIR linux
+
+COPY ./config_kernel.sh config_kernel.sh
+COPY ./build_kernel_container.sh build_kernel_container.sh
+RUN ./config_kernel.sh
+
+ENTRYPOINT ["./build_kernel_container.sh"]

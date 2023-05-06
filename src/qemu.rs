@@ -480,19 +480,32 @@ impl Qemu {
             bail!("Failed to mkdir /mnt/vmtest: exit code {}", rc);
         }
 
-        let rc = run_in_vm(
-            qga,
-            output_fn,
-            "/bin/mount",
-            &[
-                "-t",
-                "9p",
-                "-o",
-                MOUNT_OPTS_9P_FS,
-                SHARED_9P_FS_MOUNT_TAG,
-                "/mnt/vmtest",
-            ],
-        )?;
+        // We can race with VM/qemu coming up. So retry a few times with growing backoff.
+        let mut rc = 0;
+        for i in 0..5 {
+            rc = run_in_vm(
+                qga,
+                output_fn,
+                "/bin/mount",
+                &[
+                    "-t",
+                    "9p",
+                    "-o",
+                    MOUNT_OPTS_9P_FS,
+                    SHARED_9P_FS_MOUNT_TAG,
+                    "/mnt/vmtest",
+                ],
+            )?;
+
+            // Exit code 32 from mount(1) indicates mount failure.
+            // We want to retry in this case.
+            if rc == 32 {
+                thread::sleep(i * Duration::from_secs(1));
+                continue;
+            } else {
+                break;
+            }
+        }
         if rc != 0 {
             bail!("Failed to mount /mnt/vmtest: exit code {}", rc);
         }

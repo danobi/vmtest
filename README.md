@@ -17,6 +17,11 @@ This can be useful in the following, non-exhaustive, list of scenarios:
   CI.
 * You are a kernel developer and you want to quickly iterate on changes.
 
+A key feature is that the root host userspace can-be/is transparently mapped
+into the guest VM. This makes dropping `vmtest` into existing CI workflows
+easy, as dependencies installed on the root host can also be effortlessly
+reused inside the guest VM.
+
 ## Dependencies
 
 The following are required dependencies, grouped by location:

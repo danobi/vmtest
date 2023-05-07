@@ -3,8 +3,6 @@
 [![CI](https://github.com/danobi/vmtest/actions/workflows/rust.yml/badge.svg)](https://github.com/danobi/vmtest/actions/workflows/rust.yml)
 [![crates.io](https://img.shields.io/crates/v/vmtest.svg)](https://crates.io/crates/vmtest)
 
-**Currently under active development. Feedback is welcome.**
-
 `vmtest` enables you to quickly and programmatically run tests inside a virtual
 machine.
 
@@ -110,6 +108,12 @@ cat: /proc/thiswillfail: No such file or directory
 Command failed with exit code: 1
 FAILED
 ```
+
+## Usage in Github CI
+
+[vmtest-action](https://github.com/danobi/vmtest-action) is a convenient
+wrapper around `vmtest` that is designed to run inside Github Actions. See
+`vmtest-action` documentation for more details.
 
 ## Configuration
 

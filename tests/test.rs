@@ -86,7 +86,7 @@ fn assert_no_error(recv: Receiver<Output>) {
 fn test_run() {
     let vmtest = vmtest("vmtest.toml.allgood");
     let ui = Ui::new(vmtest);
-    let failed = ui.run(&*FILTER_ALL);
+    let failed = ui.run(&*FILTER_ALL, false);
     assert_eq!(failed, 0);
 }
 

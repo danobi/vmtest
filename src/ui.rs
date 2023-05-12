@@ -159,7 +159,7 @@ impl Ui {
     /// UI for a single target. Must be run on its own thread.
     ///
     /// Returns if the target was successful or not>
-    fn target_ui(updates: Receiver<Output>, target: String) -> bool {
+    fn target_ui(updates: Receiver<Output>, target: String, show_cmd: bool) -> bool {
         let term = Term::stdout();
         let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
         let mut stages = 0;
@@ -201,21 +201,27 @@ impl Ui {
                     stages += 1;
                 }
                 Output::Command(s) => stage.print_line(s, None),
-                Output::CommandEnd(r) => match r {
-                    Ok(retval) => {
-                        if *retval != 0 {
-                            error_out_stage(
-                                &mut stage,
-                                &anyhow!("Command failed with exit code: {}", retval),
-                            );
+                Output::CommandEnd(r) => {
+                    if show_cmd {
+                        stage.expand(true);
+                    }
+
+                    match r {
+                        Ok(retval) => {
+                            if *retval != 0 {
+                                error_out_stage(
+                                    &mut stage,
+                                    &anyhow!("Command failed with exit code: {}", retval),
+                                );
+                                errors += 1;
+                            }
+                        }
+                        Err(e) => {
+                            error_out_stage(&mut stage, e);
                             errors += 1;
                         }
-                    }
-                    Err(e) => {
-                        error_out_stage(&mut stage, e);
-                        errors += 1;
-                    }
-                },
+                    };
+                }
             }
         }
 
@@ -223,10 +229,10 @@ impl Ui {
         drop(stage);
 
         // Only clear target stages if target was successful
-        if errors == 0 {
+        if errors == 0 && !show_cmd {
             clear_last_lines(&term, stages);
             term.write_line("PASS").expect("Failed to write terminal");
-        } else {
+        } else if !show_cmd {
             term.write_line("FAILED").expect("Failed to write terminal");
         }
 
@@ -235,10 +241,13 @@ impl Ui {
 
     /// Run all the targets in the provided `vmtest`
     ///
+    /// `filter` specifies the regex to filter targets by.
+    /// `show_cmd` specifies if the command output should always be shown.
+    ///
     /// Note this function is "infallible" b/c on error it will display
     /// the appropriate error message to screen. Rather, it returns how
     /// many targets failed.
-    pub fn run(self, filter: &Regex) -> usize {
+    pub fn run(self, filter: &Regex, show_cmd: bool) -> usize {
         let mut failed = 0;
         for (idx, target) in self
             .vmtest
@@ -251,7 +260,7 @@ impl Ui {
 
             // Start UI on its own thread b/c `Vmtest::run_one()` will block
             let name = target.name.clone();
-            let ui = thread::spawn(move || Self::target_ui(receiver, name));
+            let ui = thread::spawn(move || Self::target_ui(receiver, name, show_cmd));
 
             // Run a target
             self.vmtest.run_one(idx, sender);

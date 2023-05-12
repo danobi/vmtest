@@ -56,6 +56,13 @@ fn config(args: &Args) -> Result<Vmtest> {
     }
 }
 
+/// Whether or not to collapse command output in UI.
+///
+/// This is useful for one-liner invocations.
+fn show_cmd(args: &Args) -> bool {
+    args.config.is_none()
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -63,7 +70,7 @@ fn main() -> Result<()> {
     let vmtest = config(&args)?;
     let filter = Regex::new(&args.filter).context("Failed to compile regex")?;
     let ui = Ui::new(vmtest);
-    let failed = ui.run(&filter);
+    let failed = ui.run(&filter, show_cmd(&args));
     let rc = i32::from(failed != 0);
 
     exit(rc);

@@ -1,4 +1,4 @@
-FROM alpine:edge as kernel
+FROM alpine:3.18 as kernel
 
 ARG KERNEL_REPO=https://github.com/torvalds/linux.git
 ARG KERNEL_TAG

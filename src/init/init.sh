@@ -86,7 +86,7 @@ for dir in /sys/class/virtio-ports/*; do
     fi
 done
 if [[ -z "$vport" ]]; then
-    log "Failed to locate qemu-guest-agent virio-port"
+    log "Failed to locate qemu-guest-agent virtio-port"
     exit 1
 fi
 log "Located qemu-guest-agent virtio port: ${vport}"

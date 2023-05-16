@@ -60,6 +60,8 @@ $ cargo install vmtest
 
 ## Usage
 
+### Config file interface
+
 `vmtest` by default reads from `vmtest.toml` in the current working directory.
 `vmtest.toml`, in turn, describes which _targets_ should be run.
 
@@ -108,6 +110,26 @@ cat: /proc/thiswillfail: No such file or directory
 Command failed with exit code: 1
 FAILED
 ```
+
+### One-liner interface
+
+The config file interface is more powerful and unlocks all `vmtest` features.
+However it can be a bit heavyweight if you're just trying to do something
+one-off. For such lighter-weight cases, `vmtest` has a one-liner interface.
+
+For example, to run an arbitrary command in the guest VM with a different
+kernel:
+
+```
+$ vmtest -k ./bzImage-v6.2 "uname -r"
+=> bzImage-v6.2
+===> Booting
+===> Setting up VM
+===> Running command
+6.2.0
+```
+
+See `vmtest --help` for all options and flags.
 
 ## Usage in Github CI
 

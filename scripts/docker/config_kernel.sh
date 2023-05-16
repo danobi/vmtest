@@ -6,8 +6,17 @@
 
 set -eux
 
-# Start with all defaults
-make defconfig
+# Start with a distro config
+cp "distros/${1}" .config
+
+# If an empty config was provided, then we need to start with defconfig
+# to get a sane config. Otherwise, all we need to do is default out the
+# new or unset configs.
+if [[ -s .config ]]; then
+    make olddefconfig
+else
+    make defconfig
+fi
 
 # Apply vmtest required configs
 ./scripts/config \

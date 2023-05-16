@@ -2,6 +2,7 @@ FROM alpine:3.18 as kernel
 
 ARG KERNEL_REPO=https://github.com/torvalds/linux.git
 ARG KERNEL_TAG
+ARG DISTRO
 
 RUN apk update && apk add \
   bash \
@@ -28,6 +29,7 @@ WORKDIR linux
 
 COPY ./config_kernel.sh config_kernel.sh
 COPY ./build_kernel_container.sh build_kernel_container.sh
-RUN ./config_kernel.sh
+COPY ./distros distros
+RUN ./config_kernel.sh ${DISTRO}
 
 ENTRYPOINT ["./build_kernel_container.sh"]

@@ -22,6 +22,7 @@ fi
 ./scripts/config \
     -e VIRTIO \
     -e VIRTIO_PCI \
+    -e VIRTIO_CONSOLE \
     -e NET_9P \
     -e NET_9P_VIRTIO \
     -e 9P_FS

@@ -33,7 +33,7 @@ docker build \
     scripts/docker
 
 # Run builder
-docker run --rm -v "$(pwd):/output" -it vmtest-kernel-builder-"$IDENTIFIER"
+docker run --rm -v "$(pwd):/output" vmtest-kernel-builder-"$IDENTIFIER"
 
 # Rename bzImage appropriately
 mv -f bzImage bzImage-"$IDENTIFIER"

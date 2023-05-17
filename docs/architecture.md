@@ -1,6 +1,6 @@
 # Architecture
 
-![General architecture](./docs/architecture.png)
+![General architecture](./architecture.png)
 
 The first big idea is that `vmtest` tries to orchestrate everything through
 QEMU's programmable interfaces, namely the QEMU machine protocol (QMP) for

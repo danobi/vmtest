@@ -13,19 +13,19 @@ cp "distros/${1}" .config
 # to get a sane config. Otherwise, all we need to do is default out the
 # new or unset configs.
 if [[ -s .config ]]; then
-    make olddefconfig
+	make olddefconfig
 else
-    make defconfig
+	make defconfig
 fi
 
 # Apply vmtest required configs
 ./scripts/config \
-    -e VIRTIO \
-    -e VIRTIO_PCI \
-    -e VIRTIO_CONSOLE \
-    -e NET_9P \
-    -e NET_9P_VIRTIO \
-    -e 9P_FS
+	-e VIRTIO \
+	-e VIRTIO_PCI \
+	-e VIRTIO_CONSOLE \
+	-e NET_9P \
+	-e NET_9P_VIRTIO \
+	-e 9P_FS
 
 # Disable x86 insn decoder selftest. It takes way too long to run.
 ./scripts/config -d X86_DECODER_SELFTEST

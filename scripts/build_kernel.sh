@@ -14,8 +14,8 @@ set -eu
 cd "$(git rev-parse --show-toplevel)"
 
 if [[ $# < 1 || $# > 2 ]]; then
-    echo "Usage: $0 <kernel-tag> [<distro>]"
-    exit 1
+	echo "Usage: $0 <kernel-tag> [<distro>]"
+	exit 1
 fi
 
 # Use empty config file if no distro is specified
@@ -26,11 +26,11 @@ IDENTIFIER="$1"-"$DISTRO"
 
 # Build builder
 docker build \
-    --build-arg KERNEL_TAG="$1" \
-    --build-arg DISTRO="$DISTRO" \
-    -t vmtest-kernel-builder-"$IDENTIFIER" \
-    -f scripts/docker/Dockerfile.kernel \
-    scripts/docker
+	--build-arg KERNEL_TAG="$1" \
+	--build-arg DISTRO="$DISTRO" \
+	-t vmtest-kernel-builder-"$IDENTIFIER" \
+	-f scripts/docker/Dockerfile.kernel \
+	scripts/docker
 
 # Run builder
 docker run --rm -v "$(pwd):/output" vmtest-kernel-builder-"$IDENTIFIER"

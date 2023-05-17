@@ -27,6 +27,9 @@ fi
     -e NET_9P_VIRTIO \
     -e 9P_FS
 
+# Disable x86 insn decoder selftest. It takes way too long to run.
+./scripts/config -d X86_DECODER_SELFTEST
+
 # Setting previous configs may result in more sub options being available,
 # so set all the new available ones to default as well.
 make olddefconfig

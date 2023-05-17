@@ -36,7 +36,4 @@ The following fields are supported:
 * `command` (string)
     * Required field
     * Command to run inside VM
-    * The specified command must be an absolute path
-    * Note that the specified command is not run inside a shell by default.
-      If you want a shell, use `/bin/bash -c "$SHELL_CMD_HERE"`.
-
+    * Note that the specified command is run inside a `bash` shell by default

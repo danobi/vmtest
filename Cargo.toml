@@ -22,7 +22,6 @@ regex = "1.7.1"
 scopeguard = "1.1.0"
 serde = "1.0.147"
 serde_derive = "1.0.147"
-shell-words = "1.1.0"
 tempfile = "3.3.0"
 toml = "0.5.9"
 

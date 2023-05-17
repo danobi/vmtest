@@ -91,12 +91,12 @@ For example, consider the following `vmtest.toml`:
 [[target]]
 name = "AWS kernel"
 kernel = "./bzImage-5.15.0-1022-aws"
-command = "/bin/bash -c 'uname -r | grep -e aws$'"
+command = "uname -r | grep -e aws$"
 
 [[target]]
 name = "OCI image"
 image = "./oci-stage-6/oci-stage-6-disk001.qcow2"
-command = "/bin/bash -c 'ls -l /mnt/vmtest && cat /proc/thiswillfail'"
+command = "ls -l /mnt/vmtest && cat /proc/thiswillfail"
 ```
 
 In the above config, two see two defined targets: "AWS kernel" and "OCI image".

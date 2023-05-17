@@ -450,21 +450,15 @@ impl Qemu {
     }
 
     /// Run this target's command inside the VM
+    ///
+    /// Note the command is run in a bash shell
     fn run_command(&self, qga: &QgaWrapper) -> Result<i64> {
-        let parts = shell_words::split(&self.command).context("Failed to shell split command")?;
-        // This is checked during config validation
-        assert!(!parts.is_empty());
-
         let output_fn = |line: String| {
             let _ = self.updates.send(Output::Command(line));
         };
-        let cmd = &parts[0];
-        let args: Vec<&str> = parts
-            .get(1..)
-            .unwrap_or(&[])
-            .iter()
-            .map(|s| -> &str { s.as_ref() })
-            .collect();
+
+        let cmd = "/bin/bash";
+        let args = ["-c", &self.command];
 
         run_in_vm(qga, output_fn, cmd, &args)
     }

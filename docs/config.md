@@ -37,3 +37,5 @@ The following fields are supported:
     * Required field
     * Command to run inside VM
     * Note that the specified command is run inside a `bash` shell by default
+    * `vmtest`'s environment variables are also propagated into the VM during
+      command execution

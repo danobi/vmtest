@@ -51,7 +51,7 @@ dependencies.
 
 ## Installation
 
-Assuming you have the [`Rust toolchain`](https://rustup.rs/) installed, simply
+Assuming you have a [`rust toolchain`](https://rustup.rs/) installed, simply
 run:
 
 ```
@@ -59,6 +59,26 @@ $ cargo install vmtest
 ```
 
 ## Usage
+
+### One-liner interface
+
+The config file interface is more powerful and unlocks all `vmtest` features.
+However it can be a bit heavyweight if you're just trying to do something
+one-off. For such lighter-weight cases, `vmtest` has a one-liner interface.
+
+For example, to run an arbitrary command in the guest VM with a different
+kernel:
+
+```
+$ vmtest -k ./bzImage-v6.2 "uname -r"
+=> bzImage-v6.2
+===> Booting
+===> Setting up VM
+===> Running command
+6.2.0
+```
+
+See `vmtest --help` for all options and flags.
 
 ### Config file interface
 
@@ -111,25 +131,7 @@ Command failed with exit code: 1
 FAILED
 ```
 
-### One-liner interface
-
-The config file interface is more powerful and unlocks all `vmtest` features.
-However it can be a bit heavyweight if you're just trying to do something
-one-off. For such lighter-weight cases, `vmtest` has a one-liner interface.
-
-For example, to run an arbitrary command in the guest VM with a different
-kernel:
-
-```
-$ vmtest -k ./bzImage-v6.2 "uname -r"
-=> bzImage-v6.2
-===> Booting
-===> Setting up VM
-===> Running command
-6.2.0
-```
-
-See `vmtest --help` for all options and flags.
+For full configuration documentation, see [config.md](./docs/config.md).
 
 ## Usage in Github CI
 
@@ -137,89 +139,9 @@ See `vmtest --help` for all options and flags.
 wrapper around `vmtest` that is designed to run inside Github Actions. See
 `vmtest-action` documentation for more details.
 
-## Configuration
-
-The following sections are supported:
-
-### `[[target]]`
-
-Each target is specified using a `[[target]]` section. In TOML, this is known
-as an [array of tables](https://toml.io/en/v1.0.0-rc.3#array-of-tables).
-
-The following fields are supported:
-
-* `name` (string)
-    * Required field
-    * The name of the target. The name is used for documentation and
-      identification purposes.
-* `image` (string)
-    * Optional field, but one of `image` and `kernel` must be specified
-    * The path to the virtual machine image
-    * If a relative path is provided, it will be interpreted as relative to
-      `vmtest.toml`
-* `uefi` (boolean)
-    * Default: `false`
-    * Whether to use UEFI boot or not
-    * `false` implies BIOS boot
-* `kernel` (string)
-    * Optional field, but one of `image` and `kernel` must be specified
-    * The path to the kernel to use
-    * Typically named `vmlinuz` or `bzImage`
-    * If a relative path is provided, it will be interpreted as relative to
-      `vmtest.toml`
-* `kernel_args` (string)
-    * Optional field
-    * `kernel` must be specified
-    * Additional kernel command line arguments to append to `vmtest` generated
-      kernel arguments
-* `command` (string)
-    * Required field
-    * Command to run inside VM
-    * The specified command must be an absolute path
-    * Note that the specified command is not run inside a shell by default.
-      If you want a shell, use `/bin/bash -c "$SHELL_CMD_HERE"`.
-
-
 ## Technical details
 
-### Github actions
-
-`vmtest` is designed to be useful for both local development and running tests
-in CI. As part of vmtest development, we run integration tests inside github
-actions. This means you can be sure that vmtest will run in github actions
-straight out of the box.
-
-See [the integration tests
-here](https://github.com/danobi/vmtest/blob/master/.github/workflows/rust.yml).
-
-Note that b/c smaller azure machine sizes (the ones github uses) don't support
-nested virtualizaion, vmtest currently does full emulation inside GHA.
-
-### Architecture
-
-![General architecture](./docs/architecture.png)
-
-The first big idea is that `vmtest` tries to orchestrate everything through
-QEMU's programmable interfaces, namely the QEMU machine protocol (QMP) for
-orchestrating QEMU and qemu-guest-agent (which also uses QMP under the hood)
-for running things inside the guest VM. Both interfaces use a unix domain
-socket for transport.
-
-For image targets, we require that `qemu-guest-agent` is installed inside the
-image b/c it's typically configured to auto-start through udev when the
-appropriate virtio-serial device appears. This gives vmtest a clean out-of-band
-mechanism to execute commands inside the guest. For kernel targets, we require
-qemu-guest-agent is installed on the host so that after rootfs is shared into
-the guest, our custom init (PID 1) process can directly run it as the one and
-only "service" it manages.
-
-The second big idea is that we use 9p filesystems to share host filesystem
-inside the guest. This is useful so that vmtest targets can import/export data
-in bulk without having to specify what to copy. In a kernel target, vmtest
-exports two volumes: `/mnt/vmtest` and the root filesystem. The latter export
-effectively gives the guest VM the same userspace environment as the host,
-except we mount it read-only so the guest cannot do too much damage to the
-host.
+For general architecture notes, see [architecture.md](./docs/architecture.md).
 
 ## Acknowledgements
 

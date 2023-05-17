@@ -1,3 +1,4 @@
+use std::env;
 use std::env::consts::ARCH;
 use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -275,8 +276,18 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
 /// NB: this is not a shell, so you won't get shell features unless you run a
 /// `/bin/bash -c '...'`
 ///
+/// `propagate_env` specifies if the calling environment should be propagated
+/// into the VM. This is useful for running user specified commands which may
+/// depend on the calling environment.
+///
 /// Returns the exit code if command is run
-fn run_in_vm<F>(qga: &QgaWrapper, output: F, cmd: &str, args: &[&str]) -> Result<i64>
+fn run_in_vm<F>(
+    qga: &QgaWrapper,
+    output: F,
+    cmd: &str,
+    args: &[&str],
+    propagate_env: bool,
+) -> Result<i64>
 where
     F: Fn(String),
 {
@@ -285,7 +296,11 @@ where
         arg: Some(args.iter().map(|a| a.to_string()).collect()),
         capture_output: Some(true),
         input_data: None,
-        env: None,
+        env: if propagate_env {
+            Some(env::vars().map(|(k, v)| format!("{k}={v}")).collect())
+        } else {
+            None
+        },
     };
     let handle = qga
         .guest_exec(qga_args)
@@ -460,7 +475,8 @@ impl Qemu {
         let cmd = "/bin/bash";
         let args = ["-c", &self.command];
 
-        run_in_vm(qga, output_fn, cmd, &args)
+        // Note we are propagating environment variables for this command
+        run_in_vm(qga, output_fn, cmd, &args, true)
     }
 
     /// Mount shared directory in the guest
@@ -469,7 +485,7 @@ impl Qemu {
             let _ = self.updates.send(Output::Setup(line));
         };
 
-        let rc = run_in_vm(qga, output_fn, "/bin/mkdir", &["-p", "/mnt/vmtest"])?;
+        let rc = run_in_vm(qga, output_fn, "/bin/mkdir", &["-p", "/mnt/vmtest"], false)?;
         if rc != 0 {
             bail!("Failed to mkdir /mnt/vmtest: exit code {}", rc);
         }
@@ -489,6 +505,7 @@ impl Qemu {
                     SHARED_9P_FS_MOUNT_TAG,
                     "/mnt/vmtest",
                 ],
+                false,
             )?;
 
             // Exit code 32 from mount(1) indicates mount failure.

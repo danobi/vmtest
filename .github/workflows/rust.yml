@@ -3,6 +3,10 @@ name: Rust
 on:
   push:
     branches: [ "master" ]
+    paths-ignore:
+      # Ignore documentation changes
+      - '**.md'
+      - '**.png'
   pull_request:
     branches: [ "master" ]
 

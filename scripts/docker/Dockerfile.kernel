@@ -1,4 +1,5 @@
-FROM alpine:3.18 as kernel
+ARG ALPINE_VERSION
+FROM alpine:${ALPINE_VERSION}
 
 ARG KERNEL_REPO=https://github.com/torvalds/linux.git
 ARG KERNEL_TAG
@@ -20,7 +21,8 @@ RUN apk update && apk add \
   python3 \
   openssl \
   openssl-dev \
-  xz
+  xz \
+  zstd
 
 WORKDIR /
 

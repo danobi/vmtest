@@ -13,7 +13,7 @@ set -eu
 # Go to repo root
 cd "$(git rev-parse --show-toplevel)"
 
-if [[ $# < 1 || $# > 2 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
 	echo "Usage: $0 <kernel-tag> [<distro>]"
 	exit 1
 fi

@@ -524,6 +524,16 @@ impl Qemu {
         Ok(())
     }
 
+    /// Sync guest filesystems so any in-flight data has time to go out to host
+    fn sync(&self, qga: &QgaWrapper) -> Result<()> {
+        let rc = run_in_vm(qga, |_| {}, "sync", &[], false)?;
+        if rc != 0 {
+            bail!("Failed to sync guest filesystems: exit code {}", rc);
+        }
+
+        Ok(())
+    }
+
     /// Cleans up qemu child process if necessary
     fn child_cleanup(mut child: Child) {
         match child.try_wait() {
@@ -676,8 +686,11 @@ impl Qemu {
                 let _ = self
                     .updates
                     .send(Output::CommandEnd(Err(e).context("Failed to run command")));
-                return;
             }
+        }
+
+        if let Err(e) = self.sync(&qga) {
+            warn!("Failed to sync filesystem: {}", e);
         }
 
         // Quit and wait for QEMU to exit

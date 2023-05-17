@@ -51,7 +51,7 @@ jobs:
             name = f"bzImage-{parts[0]}-{parts[1]}"
             if name not in existing:
                 print(line)
-        ' >> "$GITHUB_OUTPUT"
+        ' | tee -a "$GITHUB_OUTPUT"
 
         # End multiline output parameter
         echo "MULTILINE_EOF" >> "$GITHUB_OUTPUT"
@@ -59,6 +59,7 @@ jobs:
     - name: Build needed kernels
       run: |
         while IFS= read -r args; do
+            echo "Building: ${args}"
             # NB: we want to word split here
             ./scripts/build_kernel.sh $args
         done <<< "${{ steps.calculate.outputs.NEEDED_KERNELS }}"

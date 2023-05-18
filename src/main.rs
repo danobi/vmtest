@@ -23,8 +23,12 @@ struct Args {
     /// Supported regex syntax: https://docs.rs/regex/latest/regex/#syntax.
     #[clap(short, long, default_value = ".*")]
     filter: String,
+    /// Kernel to run
     #[clap(short, long, conflicts_with = "config")]
     kernel: Option<PathBuf>,
+    /// Additional kernel command line arguments
+    #[clap(long, conflicts_with = "config")]
+    kargs: Option<String>,
     #[clap(conflicts_with = "config")]
     command: Vec<String>,
 }
@@ -39,7 +43,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                 image: None,
                 uefi: false,
                 kernel: Some(kernel.clone()),
-                kernel_args: None,
+                kernel_args: args.kargs.clone(),
                 command: args.command.join(" "),
             }],
         };

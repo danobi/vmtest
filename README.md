@@ -58,6 +58,10 @@ run:
 $ cargo install vmtest
 ```
 
+Alternatively, `vmtest` publishes statically linked binaries in its [release
+assets](https://github.com/danobi/vmtest/releases). Currently only x86-64-linux
+is published.
+
 ## Usage
 
 ### One-liner interface

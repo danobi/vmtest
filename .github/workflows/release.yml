@@ -34,4 +34,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cp ./target/x86_64-unknown-linux-gnu/release/vmtest ./vmtest-amd64
-        gh release upload ${{ github.ref }} ./vmtest-amd64
+        gh release upload ${{ github.ref_name }} ./vmtest-amd64

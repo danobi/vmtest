@@ -30,6 +30,10 @@ runners][1]. Unfortunately large runners are currently only available for paid
 plans, so most open source projects will not be able to take advantage of
 nested virtualization.
 
+Another option is to [self host][2] a bare metal runner. This usually sounds
+quite appealing (install a server in your closet) but has significant security
+downsides. There are companies working on this problem, though.
+
 ### How do I run docker inside vmtest?
 
 Docker is quite tricky to run inside vmtest b/c it requires a lot of mutable
@@ -62,3 +66,4 @@ docker.
 
 [0]: https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
 [1]: https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+[2]: https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners

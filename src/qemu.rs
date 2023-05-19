@@ -617,7 +617,7 @@ impl Qemu {
             Err(e) => {
                 let _ = self
                     .updates
-                    .send(Output::BootEnd(Err(e).context("Failed to spawn process")));
+                    .send(Output::BootEnd(Err(e).context("Failed to spawn QEMU")));
                 return;
             }
         };

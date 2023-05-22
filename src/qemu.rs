@@ -437,9 +437,9 @@ impl Qemu {
     }
 
     /// Waits for QMP and QGA sockets to appear
-    fn wait_for_qemu(&self, timeout: Option<Duration>) -> Result<()> {
+    fn wait_for_qemu(&self) -> Result<()> {
         let now = time::Instant::now();
-        let timeout = timeout.unwrap_or(Duration::from_secs(5));
+        let timeout = Duration::from_secs(5);
 
         while now.elapsed() < timeout {
             let qga_ok = self
@@ -625,7 +625,7 @@ impl Qemu {
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, Self::child_cleanup);
 
-        if let Err(e) = self.wait_for_qemu(None) {
+        if let Err(e) = self.wait_for_qemu() {
             let _ = self.updates.send(Output::BootEnd(
                 Err(e).context("Failed waiting for QEMU to be ready"),
             ));

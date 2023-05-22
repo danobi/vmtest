@@ -664,9 +664,18 @@ impl Qemu {
         let qmp_info = match qmp.handshake() {
             Ok(i) => i,
             Err(e) => {
-                let _ = self
-                    .updates
-                    .send(Output::BootEnd(Err(e).context("QMP handshake failed")));
+                // If the handshake failed, grab stderr from qemu and display it
+                // to assist with debugging
+                let mut err = String::new();
+                // unwrap() should never fail b/c we are capturing stdout
+                let mut stderr = child.stderr.take().unwrap();
+                if let Err(e) = stderr.read_to_string(&mut err) {
+                    err += &format!("<failed to read stderr: {}>", e);
+                }
+
+                let _ = self.updates.send(Output::BootEnd(
+                    Err(e).context("QMP handshake failed").context(err),
+                ));
                 return;
             }
         };

@@ -11,7 +11,7 @@ use std::thread;
 use std::time;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use itertools::Itertools;
 use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qmp};
@@ -464,6 +464,25 @@ impl Qemu {
         bail!("QEMU sockets did not appear in time");
     }
 
+    /// Connect to QMP socket
+    fn connect_to_qmp(&self) -> Result<UnixStream> {
+        let now = time::Instant::now();
+        let timeout = Duration::from_secs(5);
+
+        while now.elapsed() < timeout {
+            if let Ok(stream) = UnixStream::connect(&self.qmp_sock) {
+                return Ok(stream);
+            }
+
+            // The delay is usually quite small, so keep the retry interval low
+            // to make vmtest appear snappy.
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        // Run one final time to return the real error
+        UnixStream::connect(&self.qmp_sock).map_err(|e| anyhow!(e))
+    }
+
     /// Run this target's command inside the VM
     ///
     /// Note the command is run in a bash shell
@@ -632,7 +651,7 @@ impl Qemu {
         }
 
         // Connect to QMP socket
-        let qmp_stream = match UnixStream::connect(&self.qmp_sock) {
+        let qmp_stream = match self.connect_to_qmp() {
             Ok(s) => s,
             Err(e) => {
                 let _ = self

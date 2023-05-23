@@ -4,7 +4,7 @@ authors = ["Daniel Xu <dxu@dxuuu.xyz>"]
 description = "Helps run your tests in virtual machines"
 repository = "https://github.com/danobi/vmtest"
 readme = "README.md"
-version = "0.5.6"
+version = "0.5.7"
 edition = "2021"
 license = "Apache-2.0"
 

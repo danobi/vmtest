@@ -625,6 +625,24 @@ impl Qemu {
         });
     }
 
+    /// Extracts stderr out from the child.
+    ///
+    /// Useful for when QEMU has errored out and we want to report the error
+    /// back to the user.
+    ///
+    /// Any failures in extraction will be encoded into the return string.
+    fn extract_child_stderr(child: &mut Child) -> String {
+        let mut err = String::new();
+
+        // unwrap() should never fail b/c we are capturing stdout
+        let mut stderr = child.stderr.take().unwrap();
+        if let Err(e) = stderr.read_to_string(&mut err) {
+            err += &format!("<failed to read child stderr: {}>", e);
+        }
+
+        err
+    }
+
     /// Run the target to completion
     ///
     /// Errors and return status are reported through the `updates` channel passed into the
@@ -654,9 +672,10 @@ impl Qemu {
         let qmp_stream = match self.connect_to_qmp() {
             Ok(s) => s,
             Err(e) => {
-                let _ = self
-                    .updates
-                    .send(Output::BootEnd(Err(e).context("Failed to connect QMP")));
+                let err = Self::extract_child_stderr(&mut child);
+                let _ = self.updates.send(Output::BootEnd(
+                    Err(e).context("Failed to connect QMP").context(err),
+                ));
                 return;
             }
         };
@@ -664,15 +683,7 @@ impl Qemu {
         let qmp_info = match qmp.handshake() {
             Ok(i) => i,
             Err(e) => {
-                // If the handshake failed, grab stderr from qemu and display it
-                // to assist with debugging
-                let mut err = String::new();
-                // unwrap() should never fail b/c we are capturing stdout
-                let mut stderr = child.stderr.take().unwrap();
-                if let Err(e) = stderr.read_to_string(&mut err) {
-                    err += &format!("<failed to read stderr: {}>", e);
-                }
-
+                let err = Self::extract_child_stderr(&mut child);
                 let _ = self.updates.send(Output::BootEnd(
                     Err(e).context("QMP handshake failed").context(err),
                 ));

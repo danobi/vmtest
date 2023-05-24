@@ -29,9 +29,9 @@ WORKDIR /
 RUN git clone --depth 1 ${KERNEL_REPO} linux --branch ${KERNEL_TAG}
 WORKDIR linux
 
-COPY ./config_kernel.sh config_kernel.sh
-COPY ./build_kernel_container.sh build_kernel_container.sh
-COPY ./distros distros
+COPY ./scripts/docker/config_kernel.sh config_kernel.sh
+COPY ./scripts/docker/build_kernel_container.sh build_kernel_container.sh
+COPY ./tests/distros distros
 RUN ./config_kernel.sh ${DISTRO}
 
 ENTRYPOINT ["./build_kernel_container.sh"]

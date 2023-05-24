@@ -48,7 +48,7 @@ docker build \
 	--build-arg DISTRO="$DISTRO" \
 	-t vmtest-kernel-builder-"$IDENTIFIER" \
 	-f scripts/docker/Dockerfile.kernel \
-	scripts/docker
+	.
 
 # Run builder
 docker run --rm -v "$(pwd):/output" vmtest-kernel-builder-"$IDENTIFIER"

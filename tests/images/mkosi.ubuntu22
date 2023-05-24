@@ -1,0 +1,9 @@
+[Distribution]
+Distribution=ubuntu
+Release=jammy
+
+[Content]
+Packages=qemu-guest-agent
+
+[Output]
+Bootable=True

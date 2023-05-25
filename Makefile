@@ -19,4 +19,4 @@ $(ASSET_DIRECTORY):
 	@mkdir -p $@
 
 $(IMAGES_FILES): | tests/.assets
-	@curl -q -L https://github.com/danobi/vmtest/releases/download/test_assets/image-%.raw -o $@
+	@curl -q -L https://github.com/danobi/vmtest/releases/download/test_assets/$(notdir $@) -o $@

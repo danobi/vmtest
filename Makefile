@@ -1,5 +1,5 @@
-IMAGES := fedora37 ubuntu22
-IMAGES_FILES := $(foreach image,$(IMAGES),tests/.assets/image-$(image).raw)
+IMAGES := image-not-uefi.raw image-uefi.raw-efi
+IMAGES_FILES := $(foreach image,$(IMAGES),tests/.assets/$(image))
 ASSET_DIRECTORY := tests/.assets
 
 .PHONY: all
@@ -19,4 +19,6 @@ $(ASSET_DIRECTORY):
 	@mkdir -p $@
 
 $(IMAGES_FILES): | tests/.assets
-	@curl -q -L https://github.com/danobi/vmtest/releases/download/test_assets/$(notdir $@) -o $@
+	@curl -q -L https://github.com/danobi/vmtest/releases/download/test_assets/$(notdir $@).zst -o $@.zst
+	@zstd -d $@.zst -o $@
+	@rm $@.zst

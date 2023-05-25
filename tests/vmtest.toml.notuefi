@@ -1,10 +1,10 @@
 [[target]]
 name = "ubuntu notuefi"
-image = "ubuntu/image.raw"
+image = ".assets/image-ubuntu22.raw"
 command = "echo unreachable but should succeed"
 
 [[target]]
 name = "ubuntu uefi"
-image = "ubuntu/image.raw"
+image = ".assets/image-ubuntu22.raw"
 uefi = true
 command = "/mnt/vmtest/main.sh ubuntu vmtest.toml.notuefi"

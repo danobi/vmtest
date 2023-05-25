@@ -1,23 +1,22 @@
-MKOSI_CONFIGS := $(shell find tests -name 'mkosi.default')
-MKOSI_DIRS := $(dir $(MKOSI_CONFIGS))
-MKOSI_IMAGES := $(foreach dir,$(MKOSI_DIRS),$(dir)/image.raw)
+IMAGES := fedora37 ubuntu22
+IMAGES_FILES := $(foreach image,$(IMAGES),tests/.assets/image-$(image).raw)
+ASSET_DIRECTORY := tests/.assets
 
 .PHONY: all
 all:
 	@cargo build
 
 .PHONY: test
-test: images
+test: $(IMAGES_FILES)
 	@RUST_LOG=debug cargo test -- --test-threads=1 --nocapture
 
-.PHONY: images
-images: $(MKOSI_IMAGES)
+.PHONY: clean
+clean:
+	@cargo clean
+	@rm -rf $(ASSET_DIRECTORY)
 
-# Macro to define a target for each mkosi image
-define mkosi_image
-$(1)/image.raw: $(1)/mkosi.default
-	@sudo mkosi -C $(1) --force;
-endef
+$(ASSET_DIRECTORY):
+	@mkdir -p $@
 
-# Call macro
-$(foreach dir,$(MKOSI_DIRS),$(eval $(call mkosi_image,$(dir))))
+$(IMAGES_FILES): | tests/.assets
+	@curl -q -L https://github.com/danobi/vmtest/releases/download/test_assets/image-%.raw -o $@

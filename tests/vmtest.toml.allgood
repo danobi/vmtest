@@ -1,11 +1,11 @@
 [[target]]
 name = "ubuntu 22.04 jammy"
-image = "ubuntu/image.raw"
+image = ".assets/image-ubuntu22.raw"
 uefi = true
 command = "/mnt/vmtest/main.sh ubuntu vmtest.toml.allgood"
 
 [[target]]
-name = "fedora 36"
-image = "fedora/image.raw"
+name = "fedora 37"
+image = ".assets/image-fedora37.raw"
 uefi = true
 command = "/mnt/vmtest/main.sh fedora vmtest.toml.allgood"

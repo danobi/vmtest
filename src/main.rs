@@ -5,6 +5,8 @@ use std::process::exit;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use console::user_attended;
+use env_logger::{fmt::Target as LogTarget, Builder};
 use regex::Regex;
 
 use ::vmtest::{Config, Target, Ui, Vmtest};
@@ -31,6 +33,34 @@ struct Args {
     kargs: Option<String>,
     #[clap(conflicts_with = "config")]
     command: Vec<String>,
+}
+
+/// Initialize logging
+///
+/// This will send logs to a file named `.vmtest.log` if user is running
+/// vmtest from a terminal. We do this so the logs don't get garbled by
+/// the console manipulations from the UI. If not a terminal, simply print
+/// to terminal and the logs will be inlined correctly.
+fn init_logging() -> Result<()> {
+    let target = match user_attended() {
+        false => LogTarget::Stderr,
+        true => {
+            let file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(".vmtest.log")
+                .context("Failed to open log file")?;
+            LogTarget::Pipe(Box::new(file))
+        }
+    };
+
+    Builder::from_default_env()
+        .default_format()
+        .target(target)
+        .try_init()
+        .context("Failed to init env_logger")?;
+
+    Ok(())
 }
 
 /// Configure a `Vmtest` instance from command line arguments.
@@ -70,7 +100,7 @@ fn show_cmd(args: &Args) -> bool {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    env_logger::init();
+    init_logging().context("Failed to initialize logging")?;
     let vmtest = config(&args)?;
     let filter = Regex::new(&args.filter).context("Failed to compile regex")?;
     let ui = Ui::new(vmtest);

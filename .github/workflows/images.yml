@@ -27,8 +27,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    # Copied from https://github.com/systemd/systemd/blob/main/.github/workflows/mkosi.yml
-    - uses: systemd/mkosi@e3141cd82206e00e3a6b02c09e08b3d443462063
+    - uses: cachix/install-nix-action@v21
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
 
     - name: Calculate needed images
       id: calculate
@@ -46,13 +47,14 @@ jobs:
         # Calculate images that have already been uploaded
         existing = {line.strip() for line in sys.stdin}
         with open("./tests/IMAGES", "r") as f:
-            flavors = {line.strip() for line in f if line.strip()}
+            lines = {line.strip() for line in f if line.strip()}
 
         # Print to stdout iamges we need to build and upload
-        for flavor in flavors:
-            name = f"image-{flavor}.raw"
+        for line in lines:
+            parts = line.split()
+            name = f"image-{parts[0]}.{parts[1]}"
             if name not in existing:
-                print(flavor)
+                print(line)
         ' | tee -a "$GITHUB_OUTPUT"
 
         # End multiline output parameter
@@ -60,23 +62,16 @@ jobs:
 
     - name: Build needed images
       run: |
-        while IFS= read -r flavor; do
-            echo "Building: ${flavor}"
-
-            outdir=$(mktemp -d)
-            cp "./tests/images/mkosi.${flavor}" "$outdir"
-
-            pushd "$outdir"
-            sudo mkosi build
-            popd
-
-            cp "${outdir}/image.raw" "image-${flavor}.raw"
+        while IFS= read -r args; do
+            echo "Building: ${args}"
+            # NB: we want to word split here
+            ./scripts/build_image.sh $args
         done <<< "${{ steps.calculate.outputs.NEEDED_IMAGES }}"
 
     - name: Upload freshly built images
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        for image in image-*.raw; do
+        for image in image-*.*; do
           gh release upload test_assets "$image"
         done

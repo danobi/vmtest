@@ -109,7 +109,7 @@ fn drive_args(file: &Path, index: u32) -> Vec<OsString> {
     arg.push(file);
     arg.push(",format=raw,index=");
     arg.push(index.to_string());
-    arg.push(",media=disk,if=virtio,cache=none");
+    arg.push(",media=disk,if=virtio");
     args.push(arg);
 
     args

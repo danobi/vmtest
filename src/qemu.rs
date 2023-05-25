@@ -276,7 +276,7 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
 /// Run a process inside the VM and wait until completion
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
-/// `/bin/bash -c '...'`
+/// `bash -c '...'`
 ///
 /// `propagate_env` specifies if the calling environment should be propagated
 /// into the VM. This is useful for running user specified commands which may
@@ -494,7 +494,7 @@ impl Qemu {
             let _ = self.updates.send(Output::Command(line));
         };
 
-        let cmd = "/bin/bash";
+        let cmd = "bash";
         let args = ["-c", &self.command];
 
         // Note we are propagating environment variables for this command
@@ -508,7 +508,7 @@ impl Qemu {
             let _ = self.updates.send(Output::Setup(line));
         };
 
-        let rc = run_in_vm(qga, output_fn, "/bin/mkdir", &["-p", "/mnt/vmtest"], false)?;
+        let rc = run_in_vm(qga, output_fn, "mkdir", &["-p", "/mnt/vmtest"], false)?;
         if rc != 0 {
             bail!("Failed to mkdir /mnt/vmtest: exit code {}", rc);
         }
@@ -519,7 +519,7 @@ impl Qemu {
             rc = run_in_vm(
                 qga,
                 output_fn,
-                "/bin/mount",
+                "mount",
                 &[
                     "-t",
                     "9p",

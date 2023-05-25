@@ -1,5 +1,4 @@
-{ config, lib, pkgs, ... }:
-{
+{ config, lib, pkgs, ... }: rec {
   system.stateVersion = "22.11";
 
   # See https://github.com/nix-community/nixos-generators/issues/192
@@ -12,6 +11,7 @@
   ];
 
   environment.systemPackages = [
+    pkgs.bash
     pkgs.util-linux
   ];
 
@@ -19,4 +19,8 @@
     getty.autologinUser = lib.mkDefault "root";
     qemuGuest.enable = true;
   };
+
+  # This is necessary to correctly set qemu-guest-agent's PATH
+  # to contain all the packages we installed.
+  systemd.services.qemu-guest-agent.path = environment.systemPackages;
 }

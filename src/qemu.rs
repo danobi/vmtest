@@ -44,6 +44,8 @@ pub struct Qemu {
     command: String,
     _init: NamedTempFile,
     updates: Sender<Output>,
+    /// Whether or not we are running an image target
+    image: bool,
 }
 
 const QEMU_DEFAULT_ARGS: &[&str] = &[
@@ -433,6 +435,7 @@ impl Qemu {
             command: command.to_string(),
             _init: init,
             updates,
+            image: image.is_some(),
         })
     }
 
@@ -495,7 +498,8 @@ impl Qemu {
         let args = ["-c", &self.command];
 
         // Note we are propagating environment variables for this command
-        run_in_vm(qga, output_fn, cmd, &args, true)
+        // only if it's a kernel target.
+        run_in_vm(qga, output_fn, cmd, &args, !self.image)
     }
 
     /// Mount shared directory in the guest

@@ -3,6 +3,8 @@ use std::fs;
 use std::mem::{discriminant, Discriminant};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
+
+use anyhow::{anyhow, Error};
 use tempdir::TempDir;
 
 use vmtest::output::Output;
@@ -38,9 +40,7 @@ pub fn setup(config: Config, fixtures: &[&str]) -> (Vmtest, TempDir) {
 
 // Should not be called outside of this file
 #[doc(hidden)]
-pub fn found_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> bool {
-    let mut found_err = false;
-
+pub fn get_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> Option<Error> {
     loop {
         let msg = match recv.recv() {
             Ok(m) => m,
@@ -48,30 +48,32 @@ pub fn found_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -
             Err(_) => break,
         };
 
+        let msg_disc = discriminant(&msg);
+
         match msg {
-            Output::BootEnd(Err(_)) | Output::SetupEnd(Err(_)) | Output::CommandEnd(Err(_)) => {
+            Output::BootEnd(Err(e)) | Output::SetupEnd(Err(e)) | Output::CommandEnd(Err(e)) => {
                 if let Some(d) = disc {
-                    if discriminant(&msg) == d {
-                        found_err = true;
+                    if msg_disc == d {
+                        return Some(e);
                     }
                 } else {
-                    found_err = true;
+                    return Some(e);
                 }
             }
             Output::CommandEnd(Ok(rc)) => {
                 if let Some(d) = disc {
-                    if discriminant(&msg) == d && rc != 0 {
-                        found_err = true;
+                    if msg_disc == d && rc != 0 {
+                        return Some(anyhow!("Command failed with {}", rc));
                     }
                 } else if rc != 0 {
-                    found_err = true;
+                    return Some(anyhow!("Command failed with {}", rc));
                 }
             }
             _ => (),
         };
     }
 
-    found_err
+    None
 }
 
 #[macro_export]
@@ -82,13 +84,13 @@ macro_rules! assert_err {
         // The `Ok(())` is not used at all. We just need something to initialize
         // the enum with b/c `discriminant()` takes values, not identifiers.
         let d = discriminant(&$variant(Ok(())));
-        assert!(found_error($recv, Some(d)));
+        assert!(get_error($recv, Some(d)).is_some());
     };
 }
 
 #[macro_export]
 macro_rules! assert_no_err {
     ($recv:expr) => {
-        assert!(!found_error($recv, None));
+        assert!(get_error($recv, None).is_none());
     };
 }

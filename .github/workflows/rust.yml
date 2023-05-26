@@ -30,6 +30,12 @@ jobs:
         # Virtualization deps
         sudo apt-get install -y qemu-system-x86-64 qemu-guest-agent ovmf
 
+    - name: Cache test assets
+      uses: actions/cache@v3
+      with:
+        path: tests/.assets
+        key: ${{ hashFiles('Makefile') }}-${{ hashFiles('tests/images/*') }}-${{ hashFiles('tests/kernels/*') }}-assets
+
     - name: Run integration tests
       run: make test
 

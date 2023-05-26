@@ -22,9 +22,8 @@ regex = "1.7.1"
 scopeguard = "1.1.0"
 serde = "1.0.147"
 serde_derive = "1.0.147"
-tempfile = "3.3.0"
+tempfile = "3.5.0"
 toml = "0.5.9"
 
 [dev-dependencies]
-tempdir = "0.3.7"
 test-log = "0.2.11"

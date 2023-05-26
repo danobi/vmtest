@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
 use anyhow::{anyhow, Error};
-use tempdir::TempDir;
+use tempfile::{tempdir, TempDir};
 
 use vmtest::output::Output;
 use vmtest::vmtest::Vmtest;
@@ -25,7 +25,7 @@ pub fn asset(name: &str) -> PathBuf {
 //
 // Note: tests must hold onto the tempdir handle until the test is over.
 pub fn setup(config: Config, fixtures: &[&str]) -> (Vmtest, TempDir) {
-    let dir = TempDir::new("vmtest-test").expect("Failed to create tempdir");
+    let dir = tempdir().expect("Failed to create tempdir");
     env::set_current_dir(dir.path()).expect("Failed to set testdir");
 
     for fixture in fixtures {

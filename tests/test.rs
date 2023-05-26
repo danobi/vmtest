@@ -5,7 +5,7 @@ use std::sync::mpsc::channel;
 
 use lazy_static::lazy_static;
 use regex::Regex;
-use tempdir::TempDir;
+use tempfile::tempdir_in;
 use test_log::test;
 
 use vmtest::output::Output;
@@ -207,7 +207,7 @@ fn test_qemu_error_shown() {
 fn test_kernel_ro_flag() {
     // Cannot place this dir in tmpfs b/c vmtest will mount over host /tmp with a new tmpfs
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let touch_dir = TempDir::new_in(root, ".touchme").expect("Failed to create tempdir");
+    let touch_dir = tempdir_in(root).expect("Failed to create tempdir");
 
     let config = Config {
         target: vec![Target {

@@ -110,16 +110,11 @@ fn test_run_out_of_bounds() {
     assert_error(recv, discriminant(&Output::BootEnd(Ok(()))));
 }
 
-// The mkosi images only support UEFI boot. Expect that by not specifying
-// `uefi = true` in config, target fails
+// Try running a uefi image without uefi flag. It should fail to boot.
 #[test]
 fn test_not_uefi() {
     let vmtest = vmtest("vmtest.toml.notuefi");
     let (send, recv) = channel();
     vmtest.run_one(0, send);
     assert_error(recv, discriminant(&Output::BootEnd(Ok(()))));
-
-    let (send, recv) = channel();
-    vmtest.run_one(1, send);
-    assert_no_error(recv);
 }

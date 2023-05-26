@@ -1,4 +1,3 @@
-use std::mem::discriminant;
 use std::sync::mpsc::channel;
 
 use lazy_static::lazy_static;
@@ -72,7 +71,7 @@ fn test_run_one() {
     for i in 0..2 {
         let (send, recv) = channel();
         vmtest.run_one(i, send);
-        assert_no_error(recv);
+        assert_no_err!(recv);
     }
 }
 
@@ -102,7 +101,7 @@ fn test_run_out_of_bounds() {
     let (vmtest, _dir) = setup(config, &["main.sh"]);
     let (send, recv) = channel();
     vmtest.run_one(2, send);
-    assert_error(recv, discriminant(&Output::BootEnd(Ok(()))));
+    assert_err!(recv, Output::BootEnd);
 }
 
 // Try running a uefi image without uefi flag. It should fail to boot.
@@ -121,5 +120,5 @@ fn test_not_uefi() {
     let (vmtest, _dir) = setup(config, &["main.sh"]);
     let (send, recv) = channel();
     vmtest.run_one(0, send);
-    assert_error(recv, discriminant(&Output::BootEnd(Ok(()))));
+    assert_err!(recv, Output::BootEnd);
 }

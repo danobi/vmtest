@@ -36,7 +36,9 @@ pub fn setup(config: Config, fixtures: &[&str]) -> (Vmtest, TempDir) {
     (vmtest, dir)
 }
 
-fn found_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> bool {
+// Should not be called outside of this file
+#[doc(hidden)]
+pub fn found_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> bool {
     let mut found_err = false;
 
     loop {
@@ -72,12 +74,21 @@ fn found_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> bo
     found_err
 }
 
-// Assert that an error has been received
-pub fn assert_error(recv: Receiver<Output>, disc: Discriminant<Output>) {
-    assert!(found_error(recv, Some(disc)));
+#[macro_export]
+macro_rules! assert_err {
+    ($recv:expr, $variant:path) => {
+        use std::mem::discriminant;
+
+        // The `Ok(())` is not used at all. We just need something to initialize
+        // the enum with b/c `discriminant()` takes values, not identifiers.
+        let d = discriminant(&$variant(Ok(())));
+        assert!(found_error($recv, Some(d)));
+    };
 }
 
-// Assert that no errors have been received
-pub fn assert_no_error(recv: Receiver<Output>) {
-    assert!(!found_error(recv, None));
+#[macro_export]
+macro_rules! assert_no_err {
+    ($recv:expr) => {
+        assert!(!found_error($recv, None));
+    };
 }

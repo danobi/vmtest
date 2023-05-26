@@ -171,9 +171,9 @@ fn test_kernel_target_env_var_propagation() {
     env::set_var("TEST_ENV_VAR", "test value");
 
     let (vmtest, dir) = setup(config, &[]);
-    let (send, recv) = channel();
-    vmtest.run_one(0, send);
-    assert_no_err!(recv);
+    let ui = Ui::new(vmtest);
+    let failed = ui.run(&*FILTER_ALL, false);
+    assert_eq!(failed, 0);
 
     // Check that output file contains the shell
     let result_path = dir.path().join("result");

@@ -76,6 +76,14 @@ pub fn get_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> 
     None
 }
 
+/// Macro to help assert that an error has been received.
+///
+/// Example usage:
+///
+/// ```ignore
+/// assert_err!(recv, Output::BootEnd);
+/// assert_err!(recv, Output::CommandEnd, i64);
+/// ```
 #[macro_export]
 macro_rules! assert_err {
     ($recv:expr, $variant:path) => {
@@ -86,6 +94,26 @@ macro_rules! assert_err {
         let d = discriminant(&$variant(Ok(())));
         assert!(get_error($recv, Some(d)).is_some());
     };
+
+    ($recv:expr, $variant:path, $ty:ty) => {
+        use std::mem::discriminant;
+
+        // Just like above, the default value does not matter.
+        let d = discriminant(&$variant(Ok(<$ty>::default())));
+        assert!(get_error($recv, Some(d)).is_some());
+    };
+}
+
+#[macro_export]
+macro_rules! assert_get_err {
+    ($recv:expr, $variant:path) => {{
+        use std::mem::discriminant;
+
+        // The `Ok(())` is not used at all. We just need something to initialize
+        // the enum with b/c `discriminant()` takes values, not identifiers.
+        let d = discriminant(&$variant(Ok(())));
+        get_error($recv, Some(d)).expect("Failed to find error")
+    }};
 }
 
 #[macro_export]

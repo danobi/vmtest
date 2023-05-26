@@ -1,7 +1,11 @@
+use std::env;
+use std::fs;
+use std::path::Path;
 use std::sync::mpsc::channel;
 
 use lazy_static::lazy_static;
 use regex::Regex;
+use tempdir::TempDir;
 use test_log::test;
 
 use vmtest::output::Output;
@@ -121,4 +125,102 @@ fn test_not_uefi() {
     let (send, recv) = channel();
     vmtest.run_one(0, send);
     assert_err!(recv, Output::BootEnd);
+}
+
+#[test]
+fn test_command_runs_in_shell() {
+    let config = Config {
+        target: vec![Target {
+            name: "command is run in shell".to_string(),
+            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel_args: None,
+            // `$0` is a portable way of getting the name of the shell without relying
+            // on env vars which may be propagated from the host into the guest.
+            command: "if true; then echo -n $0 > /mnt/vmtest/result; fi".to_string(),
+            image: None,
+            uefi: false,
+        }],
+    };
+    let (vmtest, dir) = setup(config, &[]);
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+    assert_no_err!(recv);
+
+    // Check that output file contains the shell
+    let result_path = dir.path().join("result");
+    let result = fs::read_to_string(result_path).expect("Failed to read result");
+    assert_eq!(result, "bash");
+}
+
+// Tests that for kernel targets, environment variables from the host are propagated
+// into the guest.
+#[test]
+fn test_kernel_target_env_var_propagation() {
+    let config = Config {
+        target: vec![Target {
+            name: "host env vars are propagated into guest".to_string(),
+            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel_args: None,
+            command: "echo -n $TEST_ENV_VAR > /mnt/vmtest/result".to_string(),
+            image: None,
+            uefi: false,
+        }],
+    };
+
+    // Set test env var
+    env::set_var("TEST_ENV_VAR", "test value");
+
+    let (vmtest, dir) = setup(config, &[]);
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+    assert_no_err!(recv);
+
+    // Check that output file contains the shell
+    let result_path = dir.path().join("result");
+    let result = fs::read_to_string(result_path).expect("Failed to read result");
+    assert_eq!(result, "test value");
+}
+
+#[test]
+fn test_qemu_error_shown() {
+    let config = Config {
+        target: vec![Target {
+            name: "invalid kernel path".to_string(),
+            kernel: Some(asset("doesn't exist")),
+            kernel_args: None,
+            command: "true".to_string(),
+            image: None,
+            uefi: false,
+        }],
+    };
+    let (vmtest, _dir) = setup(config, &[]);
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+
+    let err = assert_get_err!(recv, Output::BootEnd);
+    let msg = err.to_string();
+    assert!(msg.contains("qemu: could not open kernel file"));
+}
+
+// Test that host FS cannot be written to if `ro` flag is passed to guest kernel args
+#[test]
+fn test_kernel_ro_flag() {
+    // Cannot place this dir in tmpfs b/c vmtest will mount over host /tmp with a new tmpfs
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let touch_dir = TempDir::new_in(root, ".touchme").expect("Failed to create tempdir");
+
+    let config = Config {
+        target: vec![Target {
+            name: "cannot touch host rootfs with ro".to_string(),
+            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel_args: Some("ro".to_string()),
+            command: format!("touch {}/file", touch_dir.path().display()),
+            image: None,
+            uefi: false,
+        }],
+    };
+    let (vmtest, _dir) = setup(config, &[]);
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+    assert_err!(recv, Output::CommandEnd, i64);
 }

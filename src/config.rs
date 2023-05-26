@@ -37,3 +37,40 @@ pub struct Config {
     /// List of targets in the testing matrix.
     pub target: Vec<Target>,
 }
+
+// Test that triple quoted toml strings are treated literally.
+// This is used by vmtest-action to avoid escaping issues.
+#[test]
+fn test_triple_quoted_strings_are_literal() {
+    let config: Config = toml::from_str(
+        r#"
+        [[target]]
+        name = "test"
+        command = '''this string has 'single' and "double" quotes'''
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        config.target[0].command,
+        r#"this string has 'single' and "double" quotes"#
+    );
+}
+
+// Similar to above, but test that backslash does not escape anything
+#[test]
+fn test_triple_quoted_strings_backslash() {
+    let config: Config = toml::from_str(
+        r#"
+        [[target]]
+        name = "test"
+        command = '''this string has \back \slash\es'''
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        config.target[0].command,
+        r#"this string has \back \slash\es"#
+    );
+}

@@ -12,8 +12,8 @@ It'll dump out in your current directory a file named `image-not-uefi.raw`.
 Under the hood it uses `nix`/`nixos` to build bootable images. All you need
 is to have [nix][3] installed to run it.
 
-Tests (in `test.rs`) download images from [test_assets][2] and run `vmtest`
-against the images.
+Tests in `test.rs` use download images from [test_assets][2] and run `vmtest`
+against the images. Asset downloads are orchestrated by the [Makefile][4].
 
 ### Updating images
 
@@ -36,11 +36,12 @@ To test kernels, we have a [GHA workflow][0] that builds kernels based off
 [`KERNELS`][1] and uploads them to the [`test_assets`][2] dummy release as
 release assets. These release assets can then be downloaded over HTTP.
 
-TODO(danobi): the actual tests that use the uploaded kernels still need to
-be written.
+Similar to the image tests, `make test` orchestrates asset downloads before
+running the test suite.
 
 
 [0]: https://github.com/danobi/vmtest/actions/workflows/kernels.yml
 [1]: ./KERNELS
 [2]: https://github.com/danobi/vmtest/releases/tag/test_assets
 [3]: https://nixos.org/download.html
+[4]: ../Makefile

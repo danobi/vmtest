@@ -233,10 +233,11 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
     cmdline.push("rootfstype=9p".into());
     cmdline.push(format!("rootflags={}", MOUNT_OPTS_9P_FS).into());
 
-    // Mount rootfs as ro to protect host from poorly behaving guest.
-    // Note the shared directory will still be mutable to allow for
-    // data transfer.
-    cmdline.push("ro".into());
+    // Mount rootfs readable/writable to make experience more smooth.
+    // Lots of tools expect to be able to write logs or change global
+    // state. The user can override this setting by supplying an
+    // additional `ro` kernel command line argument.
+    cmdline.push("rw".into());
 
     // Show as much console output as we can bear
     cmdline.push("earlyprintk=serial,0,115200".into());

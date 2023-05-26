@@ -1,16 +1,5 @@
 # Frequently asked questions
 
-### Why am I getting errors about "read-only file system"
-
-If you are using a `kernel` target, `vmtest` by default mounts the root
-filesystem as read-only to protect any misbehaving tests from interfering with
-your host. Only the current directory that `vmtest` is run from is mounted
-readable/writable at `/mnt/vmtest`.
-
-However, if you know better and would like to override this behavior, add `rw`
-to the `kernel_args` target config and the root filesystem will be readable and
-writable.
-
 ### Why is vmtest so slow on my machine?
 
 `vmtest` relies on hardware acceleration for performance. It will, however,
@@ -62,6 +51,16 @@ that rabbit hole far enough.
 
 Instead, prefer to run vmtest inside the podman container, just like with
 docker.
+
+### Is there a way to prevent the guest VM from modifying my host state?
+
+By default `vmtest` mounts the directly rooted by `vmtest.toml` (or the current
+directory if using the one-liner interface) readable and writable at
+`/mnt/vmtest`.  There is currently no way to opt out of this.
+
+Furthermore, `vmtest` kernel targets will map the host userspace into the guest
+as its rootfs readable and writable. If you do not want the host userspace to
+be R/W, supply a `ro` kernel argument.
 
 
 [0]: https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources

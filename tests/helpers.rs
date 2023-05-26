@@ -92,7 +92,7 @@ macro_rules! assert_err {
         // The `Ok(())` is not used at all. We just need something to initialize
         // the enum with b/c `discriminant()` takes values, not identifiers.
         let d = discriminant(&$variant(Ok(())));
-        assert!(get_error($recv, Some(d)).is_some());
+        assert!(dbg!(get_error($recv, Some(d))).is_some());
     };
 
     ($recv:expr, $variant:path, $ty:ty) => {
@@ -100,7 +100,7 @@ macro_rules! assert_err {
 
         // Just like above, the default value does not matter.
         let d = discriminant(&$variant(Ok(<$ty>::default())));
-        assert!(get_error($recv, Some(d)).is_some());
+        assert!(dbg!(get_error($recv, Some(d))).is_some());
     };
 }
 
@@ -119,6 +119,6 @@ macro_rules! assert_get_err {
 #[macro_export]
 macro_rules! assert_no_err {
     ($recv:expr) => {
-        assert!(get_error($recv, None).is_none());
+        assert!(dbg!(get_error($recv, None)).is_none());
     };
 }

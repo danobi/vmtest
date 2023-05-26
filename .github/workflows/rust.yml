@@ -28,7 +28,7 @@ jobs:
       run: |
         sudo apt-get update
         # Virtualization deps
-        sudo apt-get install -y qemu-system-x86-64 ovmf
+        sudo apt-get install -y qemu-system-x86-64 qemu-guest-agent ovmf
 
     - name: Run integration tests
       run: make test

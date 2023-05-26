@@ -19,7 +19,7 @@ lazy_static! {
 // Change working directory into integration test dir
 fn chdir() -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let testdir = root.join("tests/");
+    let testdir = root.join("tests/fixtures");
     env::set_current_dir(&testdir).expect("Failed to set testdir");
 
     testdir

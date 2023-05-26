@@ -1,4 +1,4 @@
 [[target]]
 name = "uefi image does not boot without uefi flag"
-image = ".assets/image-uefi.raw-efi"
+image = "../.assets/image-uefi.raw-efi"
 command = "echo unreachable"

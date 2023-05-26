@@ -1,10 +1,10 @@
 [[target]]
 name = "uefi image boots with uefi flag"
-image = ".assets/image-uefi.raw-efi"
+image = "../.assets/image-uefi.raw-efi"
 uefi = true
 command = "/mnt/vmtest/main.sh nixos vmtest.toml.allgood"
 
 [[target]]
 name = "not uefi image boots without uefi flag"
-image = ".assets/image-not-uefi.raw"
+image = "../.assets/image-not-uefi.raw"
 command = "/mnt/vmtest/main.sh nixos vmtest.toml.allgood"

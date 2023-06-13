@@ -105,14 +105,14 @@ fn drive_args(file: &Path, index: u32) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
 
     args.push("-drive".into());
-
-    let mut arg = OsString::new();
-    arg.push("file=");
-    arg.push(file);
-    arg.push(",format=raw,index=");
-    arg.push(index.to_string());
-    arg.push(",media=disk,if=virtio");
-    args.push(arg);
+    args.push(
+        format!(
+            "file={},index={},media=disk,if=virtio",
+            file.display(),
+            index.to_string()
+        )
+        .into(),
+    );
 
     args
 }

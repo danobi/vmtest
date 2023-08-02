@@ -181,6 +181,37 @@ fn test_kernel_target_env_var_propagation() {
     assert_eq!(result, "test value");
 }
 
+// Tests that for kernel targets, current working directory is preserved in the guest
+#[test]
+fn test_kernel_target_cwd_preserved() {
+    let config = Config {
+        target: vec![Target {
+            name: "host cwd preserved in guest".to_string(),
+            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel_args: None,
+            command: "cat text_file.txt > /mnt/vmtest/result".to_string(),
+            image: None,
+            uefi: false,
+        }],
+    };
+
+    let (vmtest, dir) = setup(config, &[]);
+
+    // Change working directory to our test fixture directory
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixtures = root.join("tests/fixtures");
+    env::set_current_dir(fixtures.as_path()).expect("Failed to set testdir");
+
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+    assert_no_err!(recv);
+
+    // Check that output file contains the shell
+    let result_path = dir.path().join("result");
+    let result = fs::read_to_string(result_path).expect("Failed to read result");
+    assert_eq!(result, "This is a text file!\n");
+}
+
 #[test]
 fn test_qemu_error_shown() {
     let config = Config {

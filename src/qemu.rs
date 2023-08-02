@@ -496,7 +496,9 @@ impl Qemu {
         };
 
         let cmd = "bash";
-        let args = ["-c", &self.command];
+        let cwd = env::current_dir().context("Failed to get cwd")?;
+        let script = format!("cd {}; {}", cwd.to_string_lossy(), &self.command);
+        let args = ["-c", &script];
 
         // Note we are propagating environment variables for this command
         // only if it's a kernel target.

@@ -43,7 +43,7 @@ umask 022
 # silent. We cannot rely on redirecting output to /dev/null yet.
 if ! mount | grep -q " /dev "; then
     log "devtmpfs not automounted, mounting at /dev"
-    mkdir /dev
+    mkdir -p /dev
     mount -t devtmpfs -o nosuid,noexec dev /dev
 fi
 
@@ -64,10 +64,10 @@ log "Mounting sysfs at /sys"
 mount -t sysfs -o nosuid,nodev,noexec sys /sys
 
 log "Mounting debugfs at /sys/kernel/debug"
-mount -t debugfs debugfs /sys/kernel/debug
+mount -t debugfs debugfs /sys/kernel/debug || log "Failed to mount debugfs. CONFIG_DEBUG_FS might be missing from the kernel config"
 
 log "Mounting tracefs at /sys/kernel/debug/tracing"
-mount -t tracefs tracefs /sys/kernel/debug/tracing
+mount -t tracefs tracefs /sys/kernel/debug/tracing || log "Failed to mount tracefs. CONFIG_DEBUG_FS might be missing from the kernel config"
 
 log "Mounting cgroup2 at /sys/fs/cgroup"
 mount -t cgroup2 -o nosuid,nodev,noexec cgroup2 /sys/fs/cgroup

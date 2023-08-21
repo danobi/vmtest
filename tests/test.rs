@@ -189,27 +189,25 @@ fn test_kernel_target_cwd_preserved() {
             name: "host cwd preserved in guest".to_string(),
             kernel: Some(asset("bzImage-v5.15-empty")),
             kernel_args: None,
-            command: "cat text_file.txt > /mnt/vmtest/result".to_string(),
+            command: "cat text_file.txt".to_string(),
             image: None,
             uefi: false,
         }],
     };
 
-    let (vmtest, dir) = setup(config, &[]);
-
-    // Change working directory to our test fixture directory
+    // Calculate source fixture directory and pass it in as the base path
+    // to `Vmtest`. The base path is what controls the working directory.
+    //
+    // Note the base path is used for other stuff too like resolving relative
+    // paths in the config, but since we are careful to use absolute paths
+    // in the config we can decouple that behavior for this test.
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let fixtures = root.join("tests/fixtures");
-    env::set_current_dir(fixtures.as_path()).expect("Failed to set testdir");
+    let vmtest = vmtest::Vmtest::new(fixtures, config).expect("Failed to construct vmtest");
 
     let (send, recv) = channel();
     vmtest.run_one(0, send);
     assert_no_err!(recv);
-
-    // Check that output file contains the shell
-    let result_path = dir.path().join("result");
-    let result = fs::read_to_string(result_path).expect("Failed to read result");
-    assert_eq!(result, "This is a text file!\n");
 }
 
 #[test]

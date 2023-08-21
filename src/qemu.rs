@@ -42,6 +42,7 @@ pub struct Qemu {
     qga_sock: PathBuf,
     qmp_sock: PathBuf,
     command: String,
+    host_shared: PathBuf,
     _init: NamedTempFile,
     updates: Sender<Output>,
     /// Whether or not we are running an image target
@@ -434,6 +435,7 @@ impl Qemu {
             qga_sock,
             qmp_sock,
             command: command.to_string(),
+            host_shared: host_shared.to_owned(),
             _init: init,
             updates,
             image: image.is_some(),
@@ -488,15 +490,18 @@ impl Qemu {
     }
 
     /// Generates a bash script that runs `self.command`
-    fn command_script(&self) -> Result<String> {
+    fn command_script(&self) -> String {
         if self.image {
             // Image targets do not share host FS at all, so a `cd` will never succeed
-            Ok(self.command.clone())
+            self.command.clone()
         } else {
             // Kernel targets share host FS so this `cd` should succeed. If it doesn't,
             // the error is shown to the user as a hint.
-            let cwd = env::current_dir().context("Failed to get cwd")?;
-            Ok(format!("cd {}; {}", cwd.to_string_lossy(), &self.command))
+            format!(
+                "cd {}; {}",
+                self.host_shared.to_string_lossy(),
+                &self.command
+            )
         }
     }
 
@@ -509,7 +514,7 @@ impl Qemu {
         };
 
         let cmd = "bash";
-        let script = self.command_script()?;
+        let script = self.command_script();
         let args = ["-c", &script];
 
         // Note we are propagating environment variables for this command

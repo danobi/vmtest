@@ -487,6 +487,19 @@ impl Qemu {
         UnixStream::connect(&self.qmp_sock).map_err(|e| anyhow!(e))
     }
 
+    /// Generates a bash script that runs `self.command`
+    fn command_script(&self) -> Result<String> {
+        if self.image {
+            // Image targets do not share host FS at all, so a `cd` will never succeed
+            Ok(self.command.clone())
+        } else {
+            // Kernel targets share host FS so this `cd` should succeed. If it doesn't,
+            // the error is shown to the user as a hint.
+            let cwd = env::current_dir().context("Failed to get cwd")?;
+            Ok(format!("cd {}; {}", cwd.to_string_lossy(), &self.command))
+        }
+    }
+
     /// Run this target's command inside the VM
     ///
     /// Note the command is run in a bash shell
@@ -496,8 +509,7 @@ impl Qemu {
         };
 
         let cmd = "bash";
-        let cwd = env::current_dir().context("Failed to get cwd")?;
-        let script = format!("cd {}; {}", cwd.to_string_lossy(), &self.command);
+        let script = self.command_script()?;
         let args = ["-c", &script];
 
         // Note we are propagating environment variables for this command

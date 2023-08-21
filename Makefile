@@ -12,7 +12,7 @@ all:
 
 .PHONY: test
 test: $(IMAGES_FILES) $(KERNELS_FILES)
-	@RUST_LOG=debug cargo test -- --test-threads=1 --nocapture
+	@RUST_LOG=debug cargo test -- --test-threads=1
 
 .PHONY: clean
 clean:

@@ -26,7 +26,6 @@ pub fn asset(name: &str) -> PathBuf {
 // Note: tests must hold onto the tempdir handle until the test is over.
 pub fn setup(config: Config, fixtures: &[&str]) -> (Vmtest, TempDir) {
     let dir = tempdir().expect("Failed to create tempdir");
-    env::set_current_dir(dir.path()).expect("Failed to set testdir");
 
     for fixture in fixtures {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));

@@ -60,7 +60,7 @@ pub fn get_error(recv: Receiver<Output>, disc: Option<Discriminant<Output>>) -> 
                 }
             }
             // Helpful for debugging test failures
-            Output::Command(s) => println!("{s}"),
+            Output::Command(s) => println!("Command output={s}"),
             Output::CommandEnd(Ok(rc)) => {
                 if let Some(d) = disc {
                     if msg_disc == d && rc != 0 {

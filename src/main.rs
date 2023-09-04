@@ -9,7 +9,7 @@ use console::user_attended;
 use env_logger::{fmt::Target as LogTarget, Builder};
 use regex::Regex;
 
-use ::vmtest::{Config, Target, Ui, Vmtest};
+use ::vmtest::{Config, Target, Ui, VMConfig, Vmtest};
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -75,6 +75,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                 kernel: Some(kernel.clone()),
                 kernel_args: args.kargs.clone(),
                 command: args.command.join(" "),
+                vm: VMConfig::default(),
             }],
         };
 

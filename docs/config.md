@@ -39,3 +39,45 @@ The following fields are supported:
     * Note that the specified command is run inside a `bash` shell by default
     * `vmtest`'s environment variables are also propagated into the VM during
       command execution
+* `vm` (VMConfig)
+    * Optional sub-table
+    * Configures the VM.
+    * See the VMConfig struct below.
+
+### `[[target.vm]]`
+
+The VMConfig struct that configures the QEMU VM.
+
+* `num_cpus` (int)
+    * Optional field
+    * Number of CPUs in the VM.
+    * Default: 2
+* `memory` (string)
+    * Optional field
+    * Amount of RAM for the VM.
+    * Accepts a QEMU parsable string for the -m flag like 256M or 4G.
+    * Default: 4G
+* `mounts` (Map<String, Mount>)
+    * Optional sub-table
+    * Map of additional host mounts for the VM.
+    * Key is the path in the VM and the value contains information about the host path.
+    * See below for definition of the Mount object.
+* `bios` (string)
+    * Optional field
+    * Path to the BIOS file.
+    * This is only used if the UEFI flag from target is true.
+* `extra_args` (List<string>)
+    * Optional field
+    * Extra arguments to pass to QEMU.
+
+### `[[target.vm.mounts]]`
+
+The Mount struct for defining additional host mounts into the VM.
+
+* `host_path` (string)
+    * Required field
+    * Path on the host.
+* `writable` (bool)
+    * Optional field
+    * Whether this mount is writable in the VM.
+    * Default: false

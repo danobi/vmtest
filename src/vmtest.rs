@@ -42,6 +42,13 @@ fn validate_config(config: &Config) -> Result<()> {
             bail!("Target '{}' must specify 'image' with 'uefi'", target.name);
         }
 
+        if !target.uefi && target.vm.bios.is_some() {
+            bail!(
+                "Target '{}' cannot specify a bios without setting 'uefi'",
+                target.name
+            );
+        }
+
         if target.kernel_args.is_some() && target.kernel.is_none() {
             bail!(
                 "Target '{}' must specify 'kernel' with 'kernel_args'",
@@ -113,15 +120,18 @@ impl Vmtest {
             .ok_or_else(|| anyhow!("idx={} out of range", idx))?;
         let image = self.resolve_path(target.image.as_deref());
         let kernel = self.resolve_path(target.kernel.as_deref());
+        let bios = self.resolve_path(target.vm.bios.as_deref());
 
         Qemu::new(
             updates,
             image.as_deref(),
             kernel.as_deref(),
             target.kernel_args.as_ref(),
+            bios.as_deref(),
             &target.command,
             &self.base,
             target.uefi,
+            &target.vm,
         )
         .context("Failed to setup QEMU")
     }

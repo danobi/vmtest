@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -10,7 +11,8 @@ use test_log::test;
 
 use vmtest::output::Output;
 use vmtest::ui::Ui;
-use vmtest::{Config, Target};
+use vmtest::Mount;
+use vmtest::{Config, Target, VMConfig};
 
 mod helpers;
 use helpers::*;
@@ -31,6 +33,7 @@ fn test_run() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                vm: VMConfig::default(),
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
@@ -39,6 +42,7 @@ fn test_run() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                vm: VMConfig::default(),
             },
         ],
     };
@@ -60,6 +64,7 @@ fn test_run_one() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                vm: VMConfig::default(),
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
@@ -68,6 +73,7 @@ fn test_run_one() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                vm: VMConfig::default(),
             },
         ],
     };
@@ -91,6 +97,7 @@ fn test_run_out_of_bounds() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                vm: VMConfig::default(),
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
@@ -99,6 +106,7 @@ fn test_run_out_of_bounds() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                vm: VMConfig::default(),
             },
         ],
     };
@@ -119,6 +127,7 @@ fn test_not_uefi() {
             command: "echo unreachable".to_string(),
             kernel: None,
             kernel_args: None,
+            vm: VMConfig::default(),
         }],
     };
     let (vmtest, _dir) = setup(config, &["main.sh"]);
@@ -139,6 +148,7 @@ fn test_command_runs_in_shell() {
             command: "if true; then echo -n $0 > /mnt/vmtest/result; fi".to_string(),
             image: None,
             uefi: false,
+            vm: VMConfig::default(),
         }],
     };
     let (vmtest, dir) = setup(config, &[]);
@@ -164,6 +174,7 @@ fn test_kernel_target_env_var_propagation() {
             command: "echo -n $TEST_ENV_VAR > /mnt/vmtest/result".to_string(),
             image: None,
             uefi: false,
+            vm: VMConfig::default(),
         }],
     };
 
@@ -192,6 +203,7 @@ fn test_kernel_target_cwd_preserved() {
             command: "cat text_file.txt".to_string(),
             image: None,
             uefi: false,
+            vm: VMConfig::default(),
         }],
     };
 
@@ -220,6 +232,7 @@ fn test_qemu_error_shown() {
             command: "true".to_string(),
             image: None,
             uefi: false,
+            vm: VMConfig::default(),
         }],
     };
     let (vmtest, _dir) = setup(config, &[]);
@@ -246,10 +259,100 @@ fn test_kernel_ro_flag() {
             command: format!("touch {}/file", touch_dir.path().display()),
             image: None,
             uefi: false,
+            vm: VMConfig::default(),
         }],
     };
     let (vmtest, _dir) = setup(config, &[]);
     let (send, recv) = channel();
     vmtest.run_one(0, send);
     assert_err!(recv, Output::CommandEnd, i64);
+}
+
+#[test]
+fn test_run_custom_resources() {
+    let config = Config {
+        target: vec![
+            Target {
+                name: "Custom number of CPUs".to_string(),
+                image: Some(asset("image-uefi.raw-efi")),
+                uefi: true,
+                command: r#"bash -xc "[[ "$(nproc)" == "1" ]]""#.into(),
+                kernel: None,
+                kernel_args: None,
+                vm: VMConfig {
+                    num_cpus: 1,
+                    ..Default::default()
+                },
+            },
+            Target {
+                name: "Custom amount of RAM".to_string(),
+                image: Some(asset("image-uefi.raw-efi")),
+                uefi: true,
+                command: r#"bash -xc "cat /proc/meminfo | grep 'MemTotal:         222204 kB'""#
+                    .into(),
+                kernel: None,
+                kernel_args: None,
+                vm: VMConfig {
+                    memory: "256M".into(),
+                    ..Default::default()
+                },
+            },
+        ],
+    };
+    let (vmtest, _dir) = setup(config, &["main.sh"]);
+    for i in 0..2 {
+        let (send, recv) = channel();
+        vmtest.run_one(i, send);
+        assert_no_err!(recv);
+    }
+}
+
+#[test]
+fn test_run_custom_mounts() {
+    let config = Config {
+        target: vec![
+            Target {
+                name: "mount".to_string(),
+                image: Some(asset("image-uefi.raw-efi")),
+                uefi: true,
+                command: r#"bash -xc "[[ -e /tmp/mount/README.md ]]""#.into(),
+                kernel: None,
+                kernel_args: None,
+                vm: VMConfig {
+                    mounts: HashMap::from([(
+                        "/tmp/mount".into(),
+                        Mount {
+                            host_path: Path::new(env!("CARGO_MANIFEST_DIR")).into(),
+                            writable: true,
+                        },
+                    )]),
+                    ..Default::default()
+                },
+            },
+            Target {
+                name: "RO mount".to_string(),
+                image: Some(asset("image-uefi.raw-efi")),
+                uefi: true,
+                command: r#"bash -xc "(touch /tmp/ro/hi && exit -1) || true""#.into(),
+                kernel: None,
+                kernel_args: None,
+                vm: VMConfig {
+                    mounts: HashMap::from([(
+                        "/tmp/ro".into(),
+                        Mount {
+                            host_path: Path::new(env!("CARGO_MANIFEST_DIR")).into(),
+                            writable: false,
+                        },
+                    )]),
+                    ..Default::default()
+                },
+            },
+        ],
+    };
+    let (vmtest, _dir) = setup(config, &["main.sh"]);
+    for i in 0..2 {
+        let (send, recv) = channel();
+        vmtest.run_one(i, send);
+        assert_no_err!(recv);
+    }
 }

@@ -1,6 +1,10 @@
+use itertools::Itertools;
+use std::collections::HashMap;
 use std::env;
 use std::env::consts::ARCH;
 use std::ffi::{OsStr, OsString};
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
@@ -12,7 +16,6 @@ use std::time;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
-use itertools::Itertools;
 use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qmp};
 use rand::Rng;
@@ -20,11 +23,14 @@ use tempfile::{Builder, NamedTempFile};
 
 use crate::output::Output;
 use crate::qga::QgaWrapper;
+use crate::{Mount, VMConfig};
 
 const INIT_SCRIPT: &str = include_str!("init/init.sh");
 // Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
 const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
+
+const SHARED_9P_FS_MOUNT_PATH: &str = "/mnt/vmtest";
 const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=loose,msize=1048576";
 const OVMF_PATHS: &[&str] = &[
     // Fedora
@@ -43,21 +49,14 @@ pub struct Qemu {
     qmp_sock: PathBuf,
     command: String,
     host_shared: PathBuf,
+    mounts: HashMap<String, Mount>,
     _init: NamedTempFile,
     updates: Sender<Output>,
     /// Whether or not we are running an image target
     image: bool,
 }
 
-const QEMU_DEFAULT_ARGS: &[&str] = &[
-    "-nodefaults",
-    "-display",
-    "none",
-    "-m",
-    "4G", // TODO(dxu): make configurable
-    "-smp",
-    "2", // TOOD(dxu): make configurable
-];
+const QEMU_DEFAULT_ARGS: &[&str] = &["-nodefaults", "-display", "none"];
 
 /// Whether or not the host supports KVM
 fn host_supports_kvm() -> bool {
@@ -110,7 +109,7 @@ fn drive_args(file: &Path, index: u32) -> Vec<OsString> {
         format!(
             "file={},index={},media=disk,if=virtio",
             file.display(),
-            index.to_string()
+            index
         )
         .into(),
     );
@@ -174,7 +173,7 @@ fn machine_protocol_args(sock: &Path) -> Vec<OsString> {
 ///
 /// `id` is the ID for the FS export (currently unused AFAICT)
 /// `mount_tag` is used inside guest to find the export
-fn plan9_fs_args(host_shared: &Path, id: &str, mount_tag: &str) -> Vec<OsString> {
+fn plan9_fs_args(host_shared: &Path, id: &str, mount_tag: &str, ro: bool) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
 
     args.push("-virtfs".into());
@@ -190,15 +189,23 @@ fn plan9_fs_args(host_shared: &Path, id: &str, mount_tag: &str) -> Vec<OsString>
     arg.push(format!(
         ",mount_tag={mount_tag},security_model=none,multidevs=remap"
     ));
+    if ro {
+        arg.push(",readonly=on")
+    }
     args.push(arg);
 
     args
 }
 
-fn uefi_firmware_args() -> Vec<&'static str> {
+fn uefi_firmware_args(bios: Option<&Path>) -> Vec<OsString> {
     let mut args = Vec::new();
 
-    args.push("-bios");
+    args.push("-bios".into());
+
+    if let Some(path) = bios {
+        args.push(path.into());
+        return args;
+    }
 
     let mut chosen = OVMF_PATHS[0];
     for path in OVMF_PATHS {
@@ -208,7 +215,7 @@ fn uefi_firmware_args() -> Vec<&'static str> {
             break;
         }
     }
-    args.push(chosen);
+    args.push(chosen.into());
 
     args
 }
@@ -271,6 +278,44 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
     // Set host side qemu kernel command line
     args.push("-append".into());
     args.push(cmdline.join(OsStr::new(" ")));
+
+    args
+}
+
+fn hash(s: &PathBuf) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    s.hash(&mut h);
+
+    h.finish()
+}
+
+fn vmconfig_args(vm: &VMConfig) -> Vec<OsString> {
+    let mut args = vec![
+        "-smp".into(),
+        vm.num_cpus.to_string().into(),
+        "-m".into(),
+        vm.memory.clone().into(),
+    ];
+
+    for mount in vm.mounts.values() {
+        let name = format!("mount{}", hash(&mount.host_path));
+        args.append(&mut plan9_fs_args(
+            &mount.host_path,
+            &name,
+            &name,
+            !mount.writable,
+        ));
+    }
+
+    let mut extra_args = vm
+        .extra_args
+        .clone()
+        .into_iter()
+        .map(|s: String| s.into())
+        .collect::<Vec<OsString>>();
+    args.append(&mut extra_args);
+
+    // NOTE: bios handled in the UEFI code.
 
     args
 }
@@ -385,15 +430,18 @@ impl Qemu {
         image: Option<&Path>,
         kernel: Option<&Path>,
         kargs: Option<&String>,
+        bios: Option<&Path>,
         command: &str,
         host_shared: &Path,
         uefi: bool,
+        vm: &VMConfig,
     ) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
         let init = gen_init().context("Failed to generate init")?;
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
+
         c.args(QEMU_DEFAULT_ARGS)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -402,26 +450,34 @@ impl Qemu {
             .arg("stdio")
             .args(kvm_args())
             .args(machine_protocol_args(&qmp_sock))
-            .args(guest_agent_args(&qga_sock))
-            .args(plan9_fs_args(host_shared, "shared", SHARED_9P_FS_MOUNT_TAG));
-
+            .args(guest_agent_args(&qga_sock));
+        // Always ensure the rootfs is first.
         if let Some(image) = image {
             c.args(drive_args(image, 1));
             if uefi {
-                c.args(uefi_firmware_args());
+                c.args(uefi_firmware_args(bios));
             }
         } else if let Some(kernel) = kernel {
             c.args(plan9_fs_args(
                 Path::new("/"),
                 "root",
                 ROOTFS_9P_FS_MOUNT_TAG,
+                false,
             ));
             c.args(kernel_args(kernel, init.path(), kargs));
         } else {
             panic!("Config validation should've enforced XOR");
         }
+        // Now add the shared mount and other extra mounts.
+        c.args(plan9_fs_args(
+            host_shared,
+            "shared",
+            SHARED_9P_FS_MOUNT_TAG,
+            false,
+        ));
+        c.args(vmconfig_args(vm));
 
-        if log_enabled!(Level::Debug) {
+        if log_enabled!(Level::Error) {
             let args = c.get_args().map(|a| a.to_string_lossy()).join(" ");
             debug!(
                 "qemu invocation: {} {}",
@@ -436,6 +492,7 @@ impl Qemu {
             qmp_sock,
             command: command.to_string(),
             host_shared: host_shared.to_owned(),
+            mounts: vm.mounts.clone(),
             _init: init,
             updates,
             image: image.is_some(),
@@ -523,31 +580,35 @@ impl Qemu {
     }
 
     /// Mount shared directory in the guest
-    fn mount_shared(&self, qga: &QgaWrapper) -> Result<()> {
+    fn mount_in_guest(
+        &self,
+        qga: &QgaWrapper,
+        guest_path: &str,
+        mount_tag: &str,
+        ro: bool,
+    ) -> Result<()> {
         let output_fn = |line: String| {
             let _ = self.updates.send(Output::Setup(line));
         };
 
-        let rc = run_in_vm(qga, output_fn, "mkdir", &["-p", "/mnt/vmtest"], false)?;
+        let rc = run_in_vm(qga, output_fn, "mkdir", &["-p", guest_path], false)?;
         if rc != 0 {
-            bail!("Failed to mkdir /mnt/vmtest: exit code {}", rc);
+            bail!("Failed to mkdir {}: exit code {}", guest_path, rc);
         }
 
         // We can race with VM/qemu coming up. So retry a few times with growing backoff.
         let mut rc = 0;
         for i in 0..5 {
+            let mount_opts = if ro {
+                format!("{},ro", MOUNT_OPTS_9P_FS)
+            } else {
+                MOUNT_OPTS_9P_FS.into()
+            };
             rc = run_in_vm(
                 qga,
                 output_fn,
                 "mount",
-                &[
-                    "-t",
-                    "9p",
-                    "-o",
-                    MOUNT_OPTS_9P_FS,
-                    SHARED_9P_FS_MOUNT_TAG,
-                    "/mnt/vmtest",
-                ],
+                &["-t", "9p", "-o", &mount_opts, mount_tag, guest_path],
                 false,
             )?;
 
@@ -561,7 +622,7 @@ impl Qemu {
             }
         }
         if rc != 0 {
-            bail!("Failed to mount /mnt/vmtest: exit code {}", rc);
+            bail!("Failed to mount {}: exit code {}", guest_path, rc);
         }
 
         Ok(())
@@ -731,11 +792,26 @@ impl Qemu {
 
         // Mount shared directory inside guest
         let _ = self.updates.send(Output::SetupStart);
-        if let Err(e) = self.mount_shared(&qga) {
+        if let Err(e) =
+            self.mount_in_guest(&qga, SHARED_9P_FS_MOUNT_PATH, SHARED_9P_FS_MOUNT_TAG, false)
+        {
             let _ = self.updates.send(Output::SetupEnd(
                 Err(e).context("Failed to mount shared directory in guest"),
             ));
             return;
+        }
+        for (guest_path, mount) in &self.mounts {
+            if let Err(e) = self.mount_in_guest(
+                &qga,
+                guest_path,
+                &format!("mount{}", hash(&mount.host_path)),
+                !mount.writable,
+            ) {
+                let _ = self.updates.send(Output::SetupEnd(
+                    Err(e).context(format!("Failed to mount {} in guest", guest_path)),
+                ));
+                return;
+            }
         }
         let _ = self.updates.send(Output::SetupEnd(Ok(())));
 

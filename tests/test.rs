@@ -2,9 +2,13 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
 use std::sync::mpsc::channel;
 
 use lazy_static::lazy_static;
+use log::error;
+use rand::Rng;
 use regex::Regex;
 use tempfile::tempdir_in;
 use test_log::test;
@@ -19,6 +23,43 @@ use helpers::*;
 
 lazy_static! {
     static ref FILTER_ALL: Regex = Regex::new(".*").unwrap();
+}
+
+fn gen_image_name() -> PathBuf {
+    let mut path = PathBuf::new();
+    path.push("/tmp");
+
+    let id = rand::thread_rng().gen_range(100_000..1_000_000);
+    let image = format!("/tmp/image-{id}.qcow2");
+    path.push(image);
+
+    path
+}
+
+// Create a CoW image to ensure each test runs in a clean image.
+fn create_new_image(image: PathBuf) -> Option<PathBuf> {
+    let out_image = gen_image_name();
+    let out = Command::new("qemu-img")
+        .arg("create")
+        .arg("-F")
+        .arg("raw")
+        .arg("-b")
+        .arg(image)
+        .arg("-f")
+        .arg("qcow2")
+        .arg(out_image.clone())
+        .output()
+        .expect("error creating image file");
+    if !out.status.success() {
+        error!(
+            "error creating image file: out={} err={} status={}",
+            std::str::from_utf8(&out.stdout).unwrap(),
+            std::str::from_utf8(&out.stderr).unwrap(),
+            out.status
+        );
+        return None;
+    }
+    Some(out_image)
 }
 
 // Expect that we can run the entire matrix successfully
@@ -59,7 +100,7 @@ fn test_run_one() {
         target: vec![
             Target {
                 name: "uefi image boots with uefi flag".to_string(),
-                image: Some(asset("image-uefi.raw-efi")),
+                image: create_new_image(asset("image-uefi.raw-efi")),
                 uefi: true,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -68,7 +109,7 @@ fn test_run_one() {
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
-                image: Some(asset("image-not-uefi.raw")),
+                image: create_new_image(asset("image-not-uefi.raw")),
                 uefi: false,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -92,7 +133,7 @@ fn test_run_out_of_bounds() {
         target: vec![
             Target {
                 name: "uefi image boots with uefi flag".to_string(),
-                image: Some(asset("image-uefi.raw-efi")),
+                image: create_new_image(asset("image-uefi.raw-efi")),
                 uefi: true,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -101,7 +142,7 @@ fn test_run_out_of_bounds() {
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
-                image: Some(asset("image-not-uefi.raw")),
+                image: create_new_image(asset("image-not-uefi.raw")),
                 uefi: false,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -122,7 +163,7 @@ fn test_not_uefi() {
     let config = Config {
         target: vec![Target {
             name: "uefi image does not boot without uefi flag".to_string(),
-            image: Some(asset("image-uefi.raw-efi")),
+            image: create_new_image(asset("image-uefi.raw-efi")),
             uefi: false,
             command: "echo unreachable".to_string(),
             kernel: None,
@@ -274,7 +315,7 @@ fn test_run_custom_resources() {
         target: vec![
             Target {
                 name: "Custom number of CPUs".to_string(),
-                image: Some(asset("image-uefi.raw-efi")),
+                image: create_new_image(asset("image-uefi.raw-efi")),
                 uefi: true,
                 command: r#"bash -xc "[[ "$(nproc)" == "1" ]]""#.into(),
                 kernel: None,
@@ -286,9 +327,10 @@ fn test_run_custom_resources() {
             },
             Target {
                 name: "Custom amount of RAM".to_string(),
-                image: Some(asset("image-uefi.raw-efi")),
+                image: create_new_image(asset("image-uefi.raw-efi")),
                 uefi: true,
-                command: r#"bash -xc "cat /proc/meminfo | grep 'MemTotal:         222204 kB'""#
+                // Should be in the 200 thousands, but it's variable.
+                command: r#"bash -xc "cat /proc/meminfo | grep 'MemTotal:         2..... kB'""#
                     .into(),
                 kernel: None,
                 kernel_args: None,
@@ -313,7 +355,7 @@ fn test_run_custom_mounts() {
         target: vec![
             Target {
                 name: "mount".to_string(),
-                image: Some(asset("image-uefi.raw-efi")),
+                image: create_new_image(asset("image-uefi.raw-efi")),
                 uefi: true,
                 command: r#"bash -xc "[[ -e /tmp/mount/README.md ]]""#.into(),
                 kernel: None,
@@ -331,7 +373,7 @@ fn test_run_custom_mounts() {
             },
             Target {
                 name: "RO mount".to_string(),
-                image: Some(asset("image-uefi.raw-efi")),
+                image: create_new_image(asset("image-uefi.raw-efi")),
                 uefi: true,
                 command: r#"bash -xc "(touch /tmp/ro/hi && exit -1) || true""#.into(),
                 kernel: None,

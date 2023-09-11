@@ -103,16 +103,19 @@ fn gen_init() -> Result<NamedTempFile> {
 /// Generate arguments for inserting a file as a drive into the guest
 fn drive_args(file: &Path, index: u32) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
-
+    let disk_id = format!("disk{}", hash(file));
     args.push("-drive".into());
     args.push(
         format!(
-            "file={},index={},media=disk,if=virtio",
+            "file={},index={},media=disk,if=none,id={}",
             file.display(),
-            index
+            index,
+            disk_id
         )
         .into(),
     );
+    args.push("-device".into());
+    args.push(format!("virtio-blk-pci,drive={},bootindex={}", disk_id, index).into());
 
     args
 }
@@ -282,7 +285,7 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
     args
 }
 
-fn hash(s: &PathBuf) -> u64 {
+fn hash<T: Hash + ?Sized>(s: &T) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     s.hash(&mut h);
 

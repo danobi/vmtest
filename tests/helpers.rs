@@ -2,9 +2,12 @@ use std::env;
 use std::fs;
 use std::mem::{discriminant, Discriminant};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::mpsc::Receiver;
 
 use anyhow::{anyhow, Error};
+use log::error;
+use rand::Rng;
 use tempfile::{tempdir, TempDir};
 
 use vmtest::output::Output;
@@ -122,4 +125,41 @@ macro_rules! assert_no_err {
     ($recv:expr) => {
         assert!(dbg!(get_error($recv, None)).is_none());
     };
+}
+
+fn gen_image_name() -> PathBuf {
+    let mut path = PathBuf::new();
+    path.push("/tmp");
+
+    let id = rand::thread_rng().gen_range(100_000..1_000_000);
+    let image = format!("/tmp/image-{id}.qcow2");
+    path.push(image);
+
+    path
+}
+
+// Create a CoW image to ensure each test runs in a clean image.
+pub fn create_new_image(image: PathBuf) -> Option<PathBuf> {
+    let out_image = gen_image_name();
+    let out = Command::new("qemu-img")
+        .arg("create")
+        .arg("-F")
+        .arg("raw")
+        .arg("-b")
+        .arg(image)
+        .arg("-f")
+        .arg("qcow2")
+        .arg(out_image.clone())
+        .output()
+        .expect("error creating image file");
+    if !out.status.success() {
+        error!(
+            "error creating image file: out={} err={} status={}",
+            std::str::from_utf8(&out.stdout).unwrap(),
+            std::str::from_utf8(&out.stderr).unwrap(),
+            out.status
+        );
+        return None;
+    }
+    Some(out_image)
 }

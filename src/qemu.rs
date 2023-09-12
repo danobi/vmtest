@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::env;
 use std::env::consts::ARCH;
 use std::ffi::{OsStr, OsString};
+use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -844,5 +845,12 @@ impl Qemu {
             // TODO(dxu): debug why we are getting errors here
             Err(e) => debug!("Failed to gracefull quit QEMU: {e}"),
         }
+    }
+}
+
+impl Drop for Qemu {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(self.qga_sock.as_path());
+        let _ = fs::remove_file(self.qmp_sock.as_path());
     }
 }

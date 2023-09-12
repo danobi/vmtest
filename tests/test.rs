@@ -55,11 +55,14 @@ fn test_run() {
 // Expect we can run each target one by one, sucessfully
 #[test]
 fn test_run_one() {
+    let uefi_image = create_new_image(asset("image-uefi.raw-efi"));
+    let non_uefi_image = create_new_image(asset("image-not-uefi.raw"));
+
     let config = Config {
         target: vec![
             Target {
                 name: "uefi image boots with uefi flag".to_string(),
-                image: create_new_image(asset("image-uefi.raw-efi")),
+                image: Some(uefi_image.as_pathbuf()),
                 uefi: true,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -68,7 +71,7 @@ fn test_run_one() {
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
-                image: create_new_image(asset("image-not-uefi.raw")),
+                image: Some(non_uefi_image.as_pathbuf()),
                 uefi: false,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -88,11 +91,14 @@ fn test_run_one() {
 // Expect that we have bounds checks
 #[test]
 fn test_run_out_of_bounds() {
+    let uefi_image = create_new_image(asset("image-uefi.raw-efi"));
+    let non_uefi_image = create_new_image(asset("image-not-uefi.raw"));
+
     let config = Config {
         target: vec![
             Target {
                 name: "uefi image boots with uefi flag".to_string(),
-                image: create_new_image(asset("image-uefi.raw-efi")),
+                image: Some(uefi_image.as_pathbuf()),
                 uefi: true,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -101,7 +107,7 @@ fn test_run_out_of_bounds() {
             },
             Target {
                 name: "not uefi image boots without uefi flag".to_string(),
-                image: create_new_image(asset("image-not-uefi.raw")),
+                image: Some(non_uefi_image.as_pathbuf()),
                 uefi: false,
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
@@ -119,10 +125,12 @@ fn test_run_out_of_bounds() {
 // Try running a uefi image without uefi flag. It should fail to boot.
 #[test]
 fn test_not_uefi() {
+    let uefi_image = create_new_image(asset("image-uefi.raw-efi"));
+
     let config = Config {
         target: vec![Target {
             name: "uefi image does not boot without uefi flag".to_string(),
-            image: create_new_image(asset("image-uefi.raw-efi")),
+            image: Some(uefi_image.as_pathbuf()),
             uefi: false,
             command: "echo unreachable".to_string(),
             kernel: None,
@@ -270,11 +278,13 @@ fn test_kernel_ro_flag() {
 
 #[test]
 fn test_run_custom_resources() {
+    let uefi_image = create_new_image(asset("image-uefi.raw-efi"));
+
     let config = Config {
         target: vec![
             Target {
                 name: "Custom number of CPUs".to_string(),
-                image: create_new_image(asset("image-uefi.raw-efi")),
+                image: Some(uefi_image.as_pathbuf()),
                 uefi: true,
                 command: r#"bash -xc "[[ "$(nproc)" == "1" ]]""#.into(),
                 kernel: None,
@@ -286,7 +296,7 @@ fn test_run_custom_resources() {
             },
             Target {
                 name: "Custom amount of RAM".to_string(),
-                image: create_new_image(asset("image-uefi.raw-efi")),
+                image: Some(uefi_image.as_pathbuf()),
                 uefi: true,
                 // Should be in the 200 thousands, but it's variable.
                 command: r#"bash -xc "cat /proc/meminfo | grep 'MemTotal:         2..... kB'""#
@@ -310,11 +320,13 @@ fn test_run_custom_resources() {
 
 #[test]
 fn test_run_custom_mounts() {
+    let uefi_image = create_new_image(asset("image-uefi.raw-efi"));
+
     let config = Config {
         target: vec![
             Target {
                 name: "mount".to_string(),
-                image: create_new_image(asset("image-uefi.raw-efi")),
+                image: Some(uefi_image.as_pathbuf()),
                 uefi: true,
                 command: r#"bash -xc "[[ -e /tmp/mount/README.md ]]""#.into(),
                 kernel: None,
@@ -332,7 +344,7 @@ fn test_run_custom_mounts() {
             },
             Target {
                 name: "RO mount".to_string(),
-                image: create_new_image(asset("image-uefi.raw-efi")),
+                image: Some(uefi_image.as_pathbuf()),
                 uefi: true,
                 command: r#"bash -xc "(touch /tmp/ro/hi && exit -1) || true""#.into(),
                 kernel: None,

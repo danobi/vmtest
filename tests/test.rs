@@ -2,13 +2,9 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
 use std::sync::mpsc::channel;
 
 use lazy_static::lazy_static;
-use log::error;
-use rand::Rng;
 use regex::Regex;
 use tempfile::tempdir_in;
 use test_log::test;
@@ -23,43 +19,6 @@ use helpers::*;
 
 lazy_static! {
     static ref FILTER_ALL: Regex = Regex::new(".*").unwrap();
-}
-
-fn gen_image_name() -> PathBuf {
-    let mut path = PathBuf::new();
-    path.push("/tmp");
-
-    let id = rand::thread_rng().gen_range(100_000..1_000_000);
-    let image = format!("/tmp/image-{id}.qcow2");
-    path.push(image);
-
-    path
-}
-
-// Create a CoW image to ensure each test runs in a clean image.
-fn create_new_image(image: PathBuf) -> Option<PathBuf> {
-    let out_image = gen_image_name();
-    let out = Command::new("qemu-img")
-        .arg("create")
-        .arg("-F")
-        .arg("raw")
-        .arg("-b")
-        .arg(image)
-        .arg("-f")
-        .arg("qcow2")
-        .arg(out_image.clone())
-        .output()
-        .expect("error creating image file");
-    if !out.status.success() {
-        error!(
-            "error creating image file: out={} err={} status={}",
-            std::str::from_utf8(&out.stdout).unwrap(),
-            std::str::from_utf8(&out.stderr).unwrap(),
-            out.status
-        );
-        return None;
-    }
-    Some(out_image)
 }
 
 // Expect that we can run the entire matrix successfully

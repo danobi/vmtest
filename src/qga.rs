@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Result};
 use log::{debug, error};
@@ -45,6 +45,30 @@ impl QgaWrapper {
     /// `sock` is the path to the QGA socket.
     /// `has_kvm` whether or not host supports KVM
     pub fn new(sock: PathBuf, has_kvm: bool) -> Result<Self> {
+        let timeout = if has_kvm {
+            KVM_TIMEOUT
+        } else {
+            EMULATE_TIMEOUT
+        };
+
+        // If we try reading the socket too  early, we'll hang forever and never run the test.
+        // So do the guest_sync first with a timeout to ensure that the VM Guest Agent is up.
+        let end = Instant::now() + timeout;
+        while Instant::now() < end {
+            let qga_stream = match UnixStream::connect(&sock) {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Failed to connect QGA, retrying: {}", e);
+                    continue;
+                }
+            };
+            qga_stream.set_read_timeout(Some(Duration::from_secs(1)))?;
+            let mut qga = Qga::from_stream(&qga_stream);
+            let sync_value = &qga_stream as *const _ as usize as i32;
+            if let Ok(_) = qga.guest_sync(sync_value) {
+                break;
+            }
+        }
         let (send_req, recv_req) = mpsc::channel();
         let (send_resp, recv_resp) = mpsc::channel();
 
@@ -56,11 +80,6 @@ impl QgaWrapper {
             recv_resp,
         };
 
-        let timeout = if has_kvm {
-            KVM_TIMEOUT
-        } else {
-            EMULATE_TIMEOUT
-        };
         r.guest_sync(timeout)?;
 
         Ok(r)

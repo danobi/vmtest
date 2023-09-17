@@ -344,10 +344,19 @@ fn run_in_vm<F>(
 where
     F: Fn(String),
 {
+    let version = qga.version();
     let qga_args = qga::guest_exec {
         path: cmd.to_string(),
         arg: Some(args.iter().map(|a| a.to_string()).collect()),
-        capture_output: Some(true),
+        // Merge stdout and stderr streams into stdout if qga supports it. Otherwise use
+        // separate streams and process both.
+        // Note this change is backwards compatible with older versions. The QAPI wire format
+        // guarantees this.
+        capture_output: Some(if version.major >= 8 && version.minor >= 1 {
+            qga::GuestExecCaptureOutput::mode(qga::GuestExecCaptureOutputMode::merged)
+        } else {
+            qga::GuestExecCaptureOutput::flag(true)
+        }),
         input_data: None,
         env: if propagate_env {
             Some(env::vars().map(|(k, v)| format!("{k}={v}")).collect())

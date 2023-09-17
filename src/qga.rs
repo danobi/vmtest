@@ -1,11 +1,11 @@
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-
+use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Context, Result};
-use log::{error, info, warn};
+use anyhow::{anyhow, bail, Context, Result};
+use log::{debug, error, info, warn};
 use qapi::{qga, Command as QapiCommand, Qga};
 use rand::Rng;
 
@@ -21,6 +21,33 @@ const EMULATE_TIMEOUT: Duration = Duration::from_secs(120);
 /// error message if QGA never comes up in the guest.
 pub struct QgaWrapper {
     stream: UnixStream,
+    // Version of guest agent
+    version: Version,
+}
+
+/// Version triple
+#[derive(Default, Clone)]
+pub struct Version {
+    pub major: u8,
+    pub minor: u8,
+    pub patch: u8,
+}
+
+impl Version {
+    fn new(s: &str) -> Result<Self> {
+        let err_f = || anyhow!("Failed to parse version string '{}'", s);
+
+        let parts: Vec<&str> = s.trim().split('.').collect();
+        if parts.len() != 3 {
+            bail!(err_f());
+        }
+
+        Ok(Version {
+            major: u8::from_str(parts[0]).with_context(err_f)?,
+            minor: u8::from_str(parts[1]).with_context(err_f)?,
+            patch: u8::from_str(parts[2]).with_context(err_f)?,
+        })
+    }
 }
 
 impl QgaWrapper {
@@ -55,7 +82,12 @@ impl QgaWrapper {
             let sync_value = rand::thread_rng().gen_range(1..10_000);
             match qga.guest_sync(sync_value) {
                 Ok(_) => {
-                    return Ok(Self { stream: qga_stream });
+                    let version = qga.execute(&qga::guest_info {})?.version;
+                    debug!("qga version: {}", version);
+                    return Ok(Self {
+                        stream: qga_stream,
+                        version: Version::new(&version)?,
+                    });
                 }
                 Err(e) => {
                     warn!("QGA sync failed, retrying: {e}");
@@ -84,5 +116,10 @@ impl QgaWrapper {
         let mut qga = Qga::from_stream(&self.stream);
         qga.execute(&qga::guest_exec_status { pid })
             .context("error running guest_exec_status")
+    }
+
+    /// Version triple of the guest agent (in the guest of course)
+    pub fn version(&self) -> Version {
+        self.version.clone()
     }
 }

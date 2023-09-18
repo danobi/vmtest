@@ -379,10 +379,8 @@ where
                     stdout_pos += 1;
                 })
         }
-        if let Some(t) = status.out_truncated {
-            if t {
-                output("<stdout truncation>".to_string());
-            }
+        if let Some(true) = status.out_truncated {
+            output("<stdout truncation>".to_string());
         }
         // Note we give stderr last as error messages are usually towards
         // the end of command output (if not the final line)
@@ -395,10 +393,8 @@ where
                     stderr_pos += 1;
                 })
         }
-        if let Some(t) = status.err_truncated {
-            if t {
-                output("<stderr truncation>".to_string());
-            }
+        if let Some(true) = status.err_truncated {
+            output("<stderr truncation>".to_string());
         }
 
         if status.exited {

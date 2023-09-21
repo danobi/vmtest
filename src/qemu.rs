@@ -410,11 +410,6 @@ where
             break status.exitcode.unwrap_or(0);
         }
 
-        // Exponential backoff up to 5s so we don't poll too frequently
-        if period <= (Duration::from_secs(5) / 2) {
-            period *= 2;
-        }
-
         let elapsed = now.elapsed();
         if now.elapsed() >= Duration::from_secs(30) {
             warn!(
@@ -423,8 +418,13 @@ where
             );
         }
 
-        debug!("PID={pid} not finished; sleeping {}s", period.as_millis());
+        debug!("PID={pid} not finished; sleeping {} ms", period.as_millis());
         thread::sleep(period);
+
+        // Exponential backoff up to 5s so we don't poll too frequently
+        if period <= (Duration::from_secs(5) / 2) {
+            period *= 2;
+        }
     };
 
     Ok(rc)

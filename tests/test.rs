@@ -278,13 +278,14 @@ fn test_kernel_ro_flag() {
 
 #[test]
 fn test_run_custom_resources() {
-    let uefi_image = create_new_image(asset("image-uefi.raw-efi"));
+    let uefi_image_t1 = create_new_image(asset("image-uefi.raw-efi"));
+    let uefi_image_t2 = create_new_image(asset("image-uefi.raw-efi"));
 
     let config = Config {
         target: vec![
             Target {
                 name: "Custom number of CPUs".to_string(),
-                image: Some(uefi_image.as_pathbuf()),
+                image: Some(uefi_image_t1.as_pathbuf()),
                 uefi: true,
                 command: r#"bash -xc "[[ "$(nproc)" == "1" ]]""#.into(),
                 kernel: None,
@@ -296,7 +297,7 @@ fn test_run_custom_resources() {
             },
             Target {
                 name: "Custom amount of RAM".to_string(),
-                image: Some(uefi_image.as_pathbuf()),
+                image: Some(uefi_image_t2.as_pathbuf()),
                 uefi: true,
                 // Should be in the 200 thousands, but it's variable.
                 command: r#"bash -xc "cat /proc/meminfo | grep 'MemTotal:         2..... kB'""#

@@ -159,6 +159,9 @@ impl Drop for CowImage {
 }
 
 // Create a CoW image to ensure each test runs in a clean image.
+//
+// We've seen some really odd flakiness issues when the same image
+// is reused. It may be a nixos thing. Still unclear.
 pub fn create_new_image(image: PathBuf) -> CowImage {
     let out_image = gen_image_name();
     let out = Command::new("qemu-img")

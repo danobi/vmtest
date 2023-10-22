@@ -231,6 +231,32 @@ fn test_kernel_target_cwd_preserved() {
 }
 
 #[test]
+fn test_command_process_substitution() {
+    let config = Config {
+        target: vec![Target {
+            name: "command can run process substitution".to_string(),
+            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel_args: None,
+            // `$0` is a portable way of getting the name of the shell without relying
+            // on env vars which may be propagated from the host into the guest.
+            command: "cat <(echo -n $0) > /mnt/vmtest/result".to_string(),
+            image: None,
+            uefi: false,
+            vm: VMConfig::default(),
+        }],
+    };
+    let (vmtest, dir) = setup(config, &[]);
+    let (send, recv) = channel();
+    vmtest.run_one(0, send);
+    assert_no_err!(recv);
+
+    // Check that output file contains the shell
+    let result_path = dir.path().join("result");
+    let result = fs::read_to_string(result_path).expect("Failed to read result");
+    assert_eq!(result, "bash");
+}
+
+#[test]
 fn test_qemu_error_shown() {
     let config = Config {
         target: vec![Target {

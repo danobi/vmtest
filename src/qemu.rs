@@ -152,7 +152,26 @@ fn kvm_args() -> Vec<&'static str> {
         args.push("host");
     } else {
         args.push("-cpu");
-        args.push("qemu64");
+        match ARCH {
+            "aarch64" | "s390x" => {
+                args.push("max");
+            }
+            _ => {
+                args.push("qemu64");
+            }
+        }
+    }
+    args
+}
+
+/// Generate arguments for which qemu machine to use
+fn machine_args() -> Vec<&'static str> {
+    let mut args = Vec::new();
+
+    if ARCH == "aarch64" {
+        // aarch64 does not have default machines.
+        args.push("-machine");
+        args.push("virt,gic-version=3");
     }
 
     args
@@ -224,6 +243,13 @@ fn uefi_firmware_args(bios: Option<&Path>) -> Vec<OsString> {
     args
 }
 
+/// Generate which serial device to use based on the architecture used.
+fn console_device() -> String {
+    match ARCH {
+        "aarch64" => "ttyAMA0".into(),
+        _ => "0".into(),
+    }
+}
 /// Generate arguments for running a kernel with current userspace
 ///
 /// The basic idea is we'll map host root onto guest root. And then use
@@ -252,10 +278,10 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
     cmdline.push("rw".into());
 
     // Show as much console output as we can bear
-    cmdline.push("earlyprintk=serial,0,115200".into());
+    cmdline.push(format!("earlyprintk=serial,{},115200", console_device()).into());
     // Disable userspace writing ratelimits
     cmdline.push("printk.devkmsg=on".into());
-    cmdline.push("console=0,115200".into());
+    cmdline.push(format!("console={},115200", console_device()).into());
     cmdline.push("loglevel=7".into());
 
     // We are not using RAID and this will help speed up boot
@@ -458,6 +484,7 @@ impl Qemu {
             .arg("-serial")
             .arg("stdio")
             .args(kvm_args())
+            .args(machine_args())
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock));
         // Always ensure the rootfs is first.

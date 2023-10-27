@@ -95,6 +95,8 @@ pub struct Target {
     /// * The path is relative to `vmtest.toml`.
     /// * `vmlinux`, `vmlinuz`, and `bzImage` formats are accepted.
     pub kernel: Option<PathBuf>,
+    /// Alternative root_fs
+    pub root_fs: Option<PathBuf>,
     /// Additional kernel command line parameters.
     ///
     /// Arguments are only valid for kernel targets.

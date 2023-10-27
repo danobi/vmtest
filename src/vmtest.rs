@@ -120,12 +120,14 @@ impl Vmtest {
             .ok_or_else(|| anyhow!("idx={} out of range", idx))?;
         let image = self.resolve_path(target.image.as_deref());
         let kernel = self.resolve_path(target.kernel.as_deref());
+        let root_fs = self.resolve_path(target.root_fs.as_deref());
         let bios = self.resolve_path(target.vm.bios.as_deref());
 
         Qemu::new(
             updates,
             image.as_deref(),
             kernel.as_deref(),
+            root_fs.as_deref(),
             target.kernel_args.as_ref(),
             bios.as_deref(),
             &target.command,

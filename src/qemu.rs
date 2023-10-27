@@ -76,12 +76,14 @@ fn gen_sock(prefix: &str) -> PathBuf {
     path
 }
 
-fn gen_init() -> Result<NamedTempFile> {
+fn gen_init(root_fs: Option<&Path>) -> Result<NamedTempFile> {
+    let binding = std::env::temp_dir();
+    let dest_dir = root_fs.unwrap_or(&binding);
     let mut f = Builder::new()
         .prefix("vmtest-init")
         .suffix(".sh")
         .rand_bytes(5)
-        .tempfile()
+        .tempfile_in(dest_dir)
         .context("Failed to create tempfile")?;
 
     f.write_all(INIT_SCRIPT.as_bytes())
@@ -464,6 +466,7 @@ impl Qemu {
         updates: Sender<Output>,
         image: Option<&Path>,
         kernel: Option<&Path>,
+        root_fs: Option<&Path>,
         kargs: Option<&String>,
         bios: Option<&Path>,
         command: &str,
@@ -473,7 +476,7 @@ impl Qemu {
     ) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
-        let init = gen_init().context("Failed to generate init")?;
+        let init = gen_init(root_fs).context("Failed to generate init")?;
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
 
@@ -495,12 +498,16 @@ impl Qemu {
             }
         } else if let Some(kernel) = kernel {
             c.args(plan9_fs_args(
-                Path::new("/"),
+                root_fs.unwrap_or(Path::new("/")),
                 "root",
                 ROOTFS_9P_FS_MOUNT_TAG,
                 false,
             ));
-            c.args(kernel_args(kernel, init.path(), kargs));
+            let init_path = match root_fs {
+                None => init.path(),
+                Some(path) => init.path().strip_prefix(path)?,
+            };
+            c.args(kernel_args(kernel, init_path, kargs));
         } else {
             panic!("Config validation should've enforced XOR");
         }

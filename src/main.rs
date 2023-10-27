@@ -28,6 +28,9 @@ struct Args {
     /// Kernel to run
     #[clap(short, long, conflicts_with = "config")]
     kernel: Option<PathBuf>,
+    /// host root fs dir
+    #[clap(short, long, conflicts_with = "config")]
+    root_fs: Option<PathBuf>,
     /// Additional kernel command line arguments
     #[clap(long, conflicts_with = "config")]
     kargs: Option<String>,
@@ -73,6 +76,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                 image: None,
                 uefi: false,
                 kernel: Some(kernel.clone()),
+                root_fs: args.root_fs.clone(),
                 kernel_args: args.kargs.clone(),
                 command: args.command.join(" "),
                 vm: VMConfig::default(),

@@ -121,6 +121,7 @@ impl Vmtest {
         let image = self.resolve_path(target.image.as_deref());
         let kernel = self.resolve_path(target.kernel.as_deref());
         let root_fs = self.resolve_path(target.root_fs.as_deref());
+        let arch: &str =  target.arch.as_str();
         let bios = self.resolve_path(target.vm.bios.as_deref());
 
         Qemu::new(
@@ -128,6 +129,7 @@ impl Vmtest {
             image.as_deref(),
             kernel.as_deref(),
             root_fs.as_deref(),
+             arch,
             target.kernel_args.as_ref(),
             bios.as_deref(),
             &target.command,

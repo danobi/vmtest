@@ -97,6 +97,8 @@ pub struct Target {
     pub kernel: Option<PathBuf>,
     /// Alternative root_fs
     pub root_fs: Option<PathBuf>,
+    /// Arch to run
+    pub arch: String,
     /// Additional kernel command line parameters.
     ///
     /// Arguments are only valid for kernel targets.

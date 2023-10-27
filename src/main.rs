@@ -2,6 +2,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use std::env::consts::ARCH;
+
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -31,6 +33,9 @@ struct Args {
     /// host root fs dir
     #[clap(short, long, conflicts_with = "config")]
     root_fs: Option<PathBuf>,
+    /// arch to run
+    #[clap(short, long, default_value = ARCH, conflicts_with = "config")]
+    arch: String,
     /// Additional kernel command line arguments
     #[clap(long, conflicts_with = "config")]
     kargs: Option<String>,
@@ -77,6 +82,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                 uefi: false,
                 kernel: Some(kernel.clone()),
                 root_fs: args.root_fs.clone(),
+                arch: args.arch.clone(),
                 kernel_args: args.kargs.clone(),
                 command: args.command.join(" "),
                 vm: VMConfig::default(),

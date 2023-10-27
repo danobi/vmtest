@@ -33,6 +33,7 @@ fn test_run() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig::default(),
             },
             Target {
@@ -42,6 +43,7 @@ fn test_run() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig::default(),
             },
         ],
@@ -67,6 +69,7 @@ fn test_run_one() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig::default(),
             },
             Target {
@@ -76,6 +79,7 @@ fn test_run_one() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig::default(),
             },
         ],
@@ -103,6 +107,7 @@ fn test_run_out_of_bounds() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig::default(),
             },
             Target {
@@ -112,6 +117,7 @@ fn test_run_out_of_bounds() {
                 command: "/mnt/vmtest/main.sh nixos".to_string(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig::default(),
             },
         ],
@@ -135,6 +141,7 @@ fn test_not_uefi() {
             command: "echo unreachable".to_string(),
             kernel: None,
             kernel_args: None,
+            rootfs: Target::default_rootfs(),
             vm: VMConfig::default(),
         }],
     };
@@ -151,6 +158,7 @@ fn test_command_runs_in_shell() {
             name: "command is run in shell".to_string(),
             kernel: Some(asset("bzImage-v5.15-empty")),
             kernel_args: None,
+            rootfs: Target::default_rootfs(),
             // `$0` is a portable way of getting the name of the shell without relying
             // on env vars which may be propagated from the host into the guest.
             command: "if true; then echo -n $0 > /mnt/vmtest/result; fi".to_string(),
@@ -179,6 +187,7 @@ fn test_kernel_target_env_var_propagation() {
             name: "host env vars are propagated into guest".to_string(),
             kernel: Some(asset("bzImage-v5.15-empty")),
             kernel_args: None,
+            rootfs: Target::default_rootfs(),
             command: "echo -n $TEST_ENV_VAR > /mnt/vmtest/result".to_string(),
             image: None,
             uefi: false,
@@ -208,6 +217,7 @@ fn test_kernel_target_cwd_preserved() {
             name: "host cwd preserved in guest".to_string(),
             kernel: Some(asset("bzImage-v5.15-empty")),
             kernel_args: None,
+            rootfs: Target::default_rootfs(),
             command: "cat text_file.txt".to_string(),
             image: None,
             uefi: false,
@@ -237,6 +247,7 @@ fn test_command_process_substitution() {
             name: "command can run process substitution".to_string(),
             kernel: Some(asset("bzImage-v5.15-empty")),
             kernel_args: None,
+            rootfs: Target::default_rootfs(),
             // `$0` is a portable way of getting the name of the shell without relying
             // on env vars which may be propagated from the host into the guest.
             command: "cat <(echo -n $0) > /mnt/vmtest/result".to_string(),
@@ -263,6 +274,7 @@ fn test_qemu_error_shown() {
             name: "invalid kernel path".to_string(),
             kernel: Some(asset("doesn't exist")),
             kernel_args: None,
+            rootfs: Target::default_rootfs(),
             command: "true".to_string(),
             image: None,
             uefi: false,
@@ -290,6 +302,7 @@ fn test_kernel_ro_flag() {
             name: "cannot touch host rootfs with ro".to_string(),
             kernel: Some(asset("bzImage-v5.15-empty")),
             kernel_args: Some("ro".to_string()),
+            rootfs: Target::default_rootfs(),
             command: format!("touch {}/file", touch_dir.path().display()),
             image: None,
             uefi: false,
@@ -316,6 +329,7 @@ fn test_run_custom_resources() {
                 command: r#"bash -xc "[[ "$(nproc)" == "1" ]]""#.into(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig {
                     num_cpus: 1,
                     ..Default::default()
@@ -330,6 +344,7 @@ fn test_run_custom_resources() {
                     .into(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig {
                     memory: "256M".into(),
                     ..Default::default()
@@ -358,6 +373,7 @@ fn test_run_custom_mounts() {
                 command: r#"bash -xc "[[ -e /tmp/mount/README.md ]]""#.into(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig {
                     mounts: HashMap::from([(
                         "/tmp/mount".into(),
@@ -376,6 +392,7 @@ fn test_run_custom_mounts() {
                 command: r#"bash -xc "(touch /tmp/ro/hi && exit -1) || true""#.into(),
                 kernel: None,
                 kernel_args: None,
+                rootfs: Target::default_rootfs(),
                 vm: VMConfig {
                     mounts: HashMap::from([(
                         "/tmp/ro".into(),

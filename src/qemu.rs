@@ -76,29 +76,46 @@ fn gen_sock(prefix: &str) -> PathBuf {
     path
 }
 
-fn gen_init() -> Result<NamedTempFile> {
-    let mut f = Builder::new()
+// Given a rootfs, generate a tempfile with the init script inside.
+// Returns the tempfile and the path to the init script inside the guest.
+// When rootfs is /, both the tempfile filename and guest init path are equal.
+// When rootfs is different than /, the guest init path is the same as the
+// tempfile filename, but with the rootfs path stripped off.
+fn gen_init(rootfs: &Path) -> Result<(NamedTempFile, PathBuf)> {
+    let guest_temp_dir = std::env::temp_dir();
+    let mut host_dest_dir = rootfs.to_path_buf().into_os_string();
+    host_dest_dir.push(guest_temp_dir.clone().into_os_string());
+
+    let mut host_init = Builder::new()
         .prefix("vmtest-init")
         .suffix(".sh")
         .rand_bytes(5)
-        .tempfile()
+        .tempfile_in::<OsString>(host_dest_dir)
         .context("Failed to create tempfile")?;
 
-    f.write_all(INIT_SCRIPT.as_bytes())
+    host_init
+        .write_all(INIT_SCRIPT.as_bytes())
         .context("Failed to write init to tmpfs")?;
 
     // Set write bits on script
-    let mut perms = f
+    let mut perms = host_init
         .as_file()
         .metadata()
         .context("Failed to get init tempfile metadata")?
         .permissions();
     perms.set_mode(perms.mode() | 0o111);
-    f.as_file()
+    host_init
+        .as_file()
         .set_permissions(perms)
         .context("Failed to set executable bits on init tempfile")?;
 
-    Ok(f)
+    // Path in the guest is our guest_temp_dir to which we append the file
+    // name of the host init script.
+    let guest_init = guest_temp_dir.join(host_init.path().file_name().unwrap());
+    debug!(
+        "rootfs path: {rootfs:?}, init host path: {host_init:?}, init guest path: {guest_init:?}"
+    );
+    Ok((host_init, guest_init))
 }
 
 /// Generate arguments for inserting a file as a drive into the guest
@@ -465,6 +482,7 @@ impl Qemu {
         image: Option<&Path>,
         kernel: Option<&Path>,
         kargs: Option<&String>,
+        rootfs: &Path,
         bios: Option<&Path>,
         command: &str,
         host_shared: &Path,
@@ -473,7 +491,7 @@ impl Qemu {
     ) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
-        let init = gen_init().context("Failed to generate init")?;
+        let (init, guest_init) = gen_init(rootfs).context("Failed to generate init")?;
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
 
@@ -494,13 +512,8 @@ impl Qemu {
                 c.args(uefi_firmware_args(bios));
             }
         } else if let Some(kernel) = kernel {
-            c.args(plan9_fs_args(
-                Path::new("/"),
-                "root",
-                ROOTFS_9P_FS_MOUNT_TAG,
-                false,
-            ));
-            c.args(kernel_args(kernel, init.path(), kargs));
+            c.args(plan9_fs_args(rootfs, "root", ROOTFS_9P_FS_MOUNT_TAG, false));
+            c.args(kernel_args(kernel, guest_init.as_path(), kargs));
         } else {
             panic!("Config validation should've enforced XOR");
         }

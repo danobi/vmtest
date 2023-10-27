@@ -99,12 +99,26 @@ pub struct Target {
     ///
     /// Arguments are only valid for kernel targets.
     pub kernel_args: Option<String>,
+    /// Path to rootfs to test against.
+    ///
+    /// * The path is relative to `vmtest.toml`.
+    /// * If not specified, the host's rootfs will be used.
+    /// Default: /
+    #[serde(default = "Target::default_rootfs")]
+    pub rootfs: PathBuf,
     /// Command to run inside virtual machine.
     pub command: String,
 
     /// VM Configuration.
     #[serde(default)]
     pub vm: VMConfig,
+}
+
+impl Target {
+    /// Default rootfs path to use if none are specified.
+    pub fn default_rootfs() -> PathBuf {
+        "/".into()
+    }
 }
 
 /// Config containing full test matrix

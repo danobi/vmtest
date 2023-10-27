@@ -9,7 +9,7 @@ use console::user_attended;
 use env_logger::{fmt::Target as LogTarget, Builder};
 use regex::Regex;
 
-use ::vmtest::{Config, Target, Ui, VMConfig, Vmtest};
+use vmtest::{Config, Target, Ui, VMConfig, Vmtest};
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -31,6 +31,9 @@ struct Args {
     /// Additional kernel command line arguments
     #[clap(long, conflicts_with = "config")]
     kargs: Option<String>,
+    /// Location of rootfs, default to host's /
+    #[clap(short, long, conflicts_with = "config", default_value = Target::default_rootfs().into_os_string())]
+    rootfs: PathBuf,
     #[clap(conflicts_with = "config")]
     command: Vec<String>,
 }
@@ -73,6 +76,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                 image: None,
                 uefi: false,
                 kernel: Some(kernel.clone()),
+                rootfs: args.rootfs.clone(),
                 kernel_args: args.kargs.clone(),
                 command: args.command.join(" "),
                 vm: VMConfig::default(),

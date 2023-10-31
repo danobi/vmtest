@@ -91,18 +91,14 @@ impl Vmtest {
     }
 
     /// Resolve an input path relative to the base path
-    fn resolve_path(&self, input: Option<&Path>) -> Option<PathBuf> {
-        if let Some(p) = input {
-            if p.is_relative() {
-                let mut r = self.base.clone();
-                r.push(p);
+    fn resolve_path(&self, input: &Path) -> PathBuf {
+        if input.is_relative() {
+            let mut r = self.base.clone();
+            r.push(input);
 
-                Some(r)
-            } else {
-                Some(p.to_owned())
-            }
+            r
         } else {
-            None
+            input.to_owned()
         }
     }
 
@@ -113,29 +109,18 @@ impl Vmtest {
 
     /// Setups up a `Qemu` instance for a run
     fn setup_qemu(&self, idx: usize, updates: Sender<Output>) -> Result<Qemu> {
-        let target = self
+        let mut target: Target = self
             .config
             .target
             .get(idx)
-            .ok_or_else(|| anyhow!("idx={} out of range", idx))?;
-        let image = self.resolve_path(target.image.as_deref());
-        let kernel = self.resolve_path(target.kernel.as_deref());
-        let rootfs = self.resolve_path(Some(target.rootfs.as_path())).unwrap();
-        let bios = self.resolve_path(target.vm.bios.as_deref());
+            .ok_or_else(|| anyhow!("idx={} out of range", idx))?
+            .clone();
+        target.image = target.image.map(|s| self.resolve_path(s.as_path()));
+        target.kernel = target.kernel.map(|s| self.resolve_path(s.as_path()));
+        target.rootfs = self.resolve_path(target.rootfs.as_path());
+        target.vm.bios = target.vm.bios.map(|s| self.resolve_path(s.as_path()));
 
-        Qemu::new(
-            updates,
-            image.as_deref(),
-            kernel.as_deref(),
-            target.kernel_args.as_ref(),
-            rootfs.as_path(),
-            bios.as_deref(),
-            &target.command,
-            &self.base,
-            target.uefi,
-            &target.vm,
-        )
-        .context("Failed to setup QEMU")
+        Qemu::new(updates, &target, &self.base).context("Failed to setup QEMU")
     }
 
     /// Run a single target

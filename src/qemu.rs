@@ -24,7 +24,7 @@ use tempfile::{Builder, NamedTempFile};
 
 use crate::output::Output;
 use crate::qga::QgaWrapper;
-use crate::{Mount, VMConfig};
+use crate::{Mount, Target, VMConfig};
 
 const INIT_SCRIPT: &str = include_str!("init/init.sh");
 // Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
@@ -505,21 +505,10 @@ impl Qemu {
     /// Construct a QEMU instance backing a vmtest target.
     ///
     /// Does not run anything yet.
-    pub fn new(
-        updates: Sender<Output>,
-        image: Option<&Path>,
-        kernel: Option<&Path>,
-        kargs: Option<&String>,
-        rootfs: &Path,
-        bios: Option<&Path>,
-        command: &str,
-        host_shared: &Path,
-        uefi: bool,
-        vm: &VMConfig,
-    ) -> Result<Self> {
+    pub fn new(updates: Sender<Output>, target: &Target, host_shared: &Path) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
-        let (init, guest_init) = gen_init(rootfs).context("Failed to generate init")?;
+        let (init, guest_init) = gen_init(&target.rootfs).context("Failed to generate init")?;
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
 
@@ -534,14 +523,23 @@ impl Qemu {
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock));
         // Always ensure the rootfs is first.
-        if let Some(image) = image {
-            c.args(drive_args(image, 1));
-            if uefi {
-                c.args(uefi_firmware_args(bios));
+        if let Some(image) = target.image.clone() {
+            c.args(drive_args(&image, 1));
+            if target.uefi {
+                c.args(uefi_firmware_args(target.vm.bios.as_deref()));
             }
-        } else if let Some(kernel) = kernel {
-            c.args(plan9_fs_args(rootfs, "root", ROOTFS_9P_FS_MOUNT_TAG, false));
-            c.args(kernel_args(kernel, guest_init.as_path(), kargs));
+        } else if let Some(kernel) = target.kernel.clone() {
+            c.args(plan9_fs_args(
+                target.rootfs.as_path(),
+                "root",
+                ROOTFS_9P_FS_MOUNT_TAG,
+                false,
+            ));
+            c.args(kernel_args(
+                &kernel,
+                guest_init.as_path(),
+                target.kernel_args.as_ref(),
+            ));
         } else {
             panic!("Config validation should've enforced XOR");
         }
@@ -552,7 +550,7 @@ impl Qemu {
             SHARED_9P_FS_MOUNT_TAG,
             false,
         ));
-        c.args(vmconfig_args(vm));
+        c.args(vmconfig_args(&target.vm));
 
         if log_enabled!(Level::Error) {
             let args = c.get_args().map(|a| a.to_string_lossy()).join(" ");
@@ -567,12 +565,12 @@ impl Qemu {
             process: c,
             qga_sock,
             qmp_sock,
-            command: command.to_string(),
+            command: target.command.to_string(),
             host_shared: host_shared.to_owned(),
-            mounts: vm.mounts.clone(),
+            mounts: target.vm.mounts.clone(),
             _init: init,
             updates,
-            image: image.is_some(),
+            image: target.image.is_some(),
         })
     }
 

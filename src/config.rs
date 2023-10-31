@@ -17,7 +17,7 @@ pub struct Mount {
 }
 
 /// VM Config for a target
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct VMConfig {
     /// Number of CPUs in the VM.
     ///
@@ -76,7 +76,7 @@ impl Default for VMConfig {
 }
 
 /// Config for a single target
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Target {
     /// Name of the testing target.
     pub name: String,

@@ -76,6 +76,15 @@ fn gen_sock(prefix: &str) -> PathBuf {
     path
 }
 
+// Given a guest temp dir and a host init path, generate the path to the init file
+// in the guest.
+// This path is the one that will be passed to the guest via the kernel's `init=` parameter.
+fn guest_init_path(guest_temp_dir: PathBuf, host_init_path: PathBuf) -> PathBuf {
+    let mut guest_init_path = guest_temp_dir;
+    guest_init_path.push(host_init_path.file_name().unwrap());
+    guest_init_path
+}
+
 // Given a rootfs, generate a tempfile with the init script inside.
 // Returns the tempfile and the path to the init script inside the guest.
 // When rootfs is /, both the tempfile filename and guest init path are equal.
@@ -111,7 +120,7 @@ fn gen_init(rootfs: &Path) -> Result<(NamedTempFile, PathBuf)> {
 
     // Path in the guest is our guest_temp_dir to which we append the file
     // name of the host init script.
-    let guest_init = guest_temp_dir.join(host_init.path().file_name().unwrap());
+    let guest_init = guest_init_path(guest_temp_dir, host_init.path().to_path_buf());
     debug!(
         "rootfs path: {rootfs:?}, init host path: {host_init:?}, init guest path: {guest_init:?}"
     );
@@ -897,5 +906,36 @@ impl Drop for Qemu {
     fn drop(&mut self) {
         let _ = fs::remove_file(self.qga_sock.as_path());
         let _ = fs::remove_file(self.qmp_sock.as_path());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::guest_init_path;
+    use rstest::rstest;
+
+    use std::path::PathBuf;
+
+    #[rstest]
+    // no trailing /
+    #[case("/tmp", "/foo/tmp/bar.sh", "/tmp/bar.sh")]
+    // with trailing /
+    #[case("/tmp/", "/foo/tmp/bar.sh", "/tmp/bar.sh")]
+    // A valid case if rootfs was /foo/tmp and env::temp_dir() was /.
+    #[case("/", "/foo/tmp/bar.sh", "/bar.sh")]
+    // This should never happen given that host_init_path is made by appending guest_temp_dir to rootfs.
+    // for now it will return a guest_init_path which won't work.
+    #[case("/tmp", "/foo/bar.sh", "/tmp/bar.sh")]
+    // A valid case if env::temp_dir() was /foo/tmp and rootfs was /.
+    #[case("/foo/tmp", "/foo/tmp/bar.sh", "/foo/tmp/bar.sh")]
+    // Invalid case because guest_temp_dir is not a suffix of dirname(host_init_path)
+    #[case("/foo/tmp", "/bar/tmp/bar.sh", "/foo/tmp/bar.sh")]
+    fn test_guest_init_path(
+        #[case] guest_temp_dir: &str,
+        #[case] host_init_path: &str,
+        #[case] expected: &str,
+    ) {
+        let r = guest_init_path(guest_temp_dir.into(), host_init_path.into());
+        assert_eq!(r, PathBuf::from(expected));
     }
 }

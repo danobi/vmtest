@@ -95,5 +95,11 @@ if [[ -z "$vport" ]]; then
 fi
 log "Located qemu-guest-agent virtio port: ${vport}"
 
+# Send QGA logs out via kmsg if possible
+qga_logs=
+if [[ -e /dev/kmsg ]]; then
+    qga_logs="--logfile /dev/kmsg"
+fi
+
 log "Spawning qemu-ga"
-qemu-ga --method=virtio-serial --path="$vport"
+qemu-ga --method=virtio-serial --path="$vport" $qga_logs

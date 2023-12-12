@@ -33,6 +33,7 @@ const COMMAND_TEMPLATE: &str = include_str!("init/command.template");
 // Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
 const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
+const COMMAND_OUTPUT_PORT_NAME: &str = "org.qemu.virtio_serial.0";
 
 const SHARED_9P_FS_MOUNT_PATH: &str = "/mnt/vmtest";
 const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=loose,msize=1048576";
@@ -52,6 +53,8 @@ pub struct Qemu {
     qga_sock: PathBuf,
     qmp_sock: PathBuf,
     command: String,
+    /// virtio-serial socket that streams command output
+    command_sock: PathBuf,
     host_shared: PathBuf,
     /// Path to somewhere on the host that the guest should use as rootfs
     rootfs: PathBuf,
@@ -373,6 +376,30 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
     args
 }
 
+/// Generate arguments for setting up virtio-serial device to stream
+/// command output from guest to host.
+fn virtio_serial_args(host_sock: &Path) -> Vec<OsString> {
+    let mut args: Vec<OsString> = Vec::new();
+
+    args.push("--device".into());
+    args.push("virtio-serial".into());
+
+    args.push("-chardev".into());
+    let mut arg = OsString::new();
+    arg.push("socket,path=");
+    arg.push(host_sock);
+    arg.push(",server=on,wait=off,id=cmdout");
+    args.push(arg);
+
+    args.push("--device".into());
+    arg = OsString::new();
+    arg.push("virtserialport,chardev=cmdout,name=");
+    arg.push(COMMAND_OUTPUT_PORT_NAME);
+    args.push(arg);
+
+    args
+}
+
 fn hash<T: Hash + ?Sized>(s: &T) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     s.hash(&mut h);
@@ -517,6 +544,7 @@ impl Qemu {
     pub fn new(updates: Sender<Output>, target: &Target, host_shared: &Path) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
+        let command_sock = gen_sock("cmdout");
         let (init, guest_init) = gen_init(&target.rootfs).context("Failed to generate init")?;
 
         let mut c = Command::new(format!("qemu-system-{}", ARCH));
@@ -530,7 +558,8 @@ impl Qemu {
             .args(kvm_args())
             .args(machine_args())
             .args(machine_protocol_args(&qmp_sock))
-            .args(guest_agent_args(&qga_sock));
+            .args(guest_agent_args(&qga_sock))
+            .args(virtio_serial_args(&command_sock));
         // Always ensure the rootfs is first.
         if let Some(image) = target.image.clone() {
             c.args(drive_args(&image, 1));
@@ -575,6 +604,7 @@ impl Qemu {
             qga_sock,
             qmp_sock,
             command: target.command.to_string(),
+            command_sock,
             host_shared: host_shared.to_owned(),
             rootfs: target.rootfs.clone(),
             mounts: target.vm.mounts.clone(),
@@ -938,6 +968,7 @@ impl Drop for Qemu {
     fn drop(&mut self) {
         let _ = fs::remove_file(self.qga_sock.as_path());
         let _ = fs::remove_file(self.qmp_sock.as_path());
+        let _ = fs::remove_file(self.command_sock.as_path());
     }
 }
 

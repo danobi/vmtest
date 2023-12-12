@@ -442,43 +442,13 @@ where
 
     let now = time::Instant::now();
     let mut period = Duration::from_millis(200);
-    let mut stdout_pos = 0;
-    let mut stderr_pos = 0;
-    let rc = loop {
+    let status = loop {
         let status = qga
             .guest_exec_status(pid)
             .context("Failed to QGA guest-exec-status")?;
 
-        // Give the most recent output to receiver
-        if let Some(stdout) = status.out_data {
-            String::from_utf8_lossy(&stdout)
-                .lines()
-                .skip(stdout_pos)
-                .for_each(|line| {
-                    output(line.to_string());
-                    stdout_pos += 1;
-                })
-        }
-        if let Some(true) = status.out_truncated {
-            output("<stdout truncation>".to_string());
-        }
-        // Note we give stderr last as error messages are usually towards
-        // the end of command output (if not the final line)
-        if let Some(stderr) = status.err_data {
-            String::from_utf8_lossy(&stderr)
-                .lines()
-                .skip(stderr_pos)
-                .for_each(|line| {
-                    output(line.to_string());
-                    stderr_pos += 1;
-                })
-        }
-        if let Some(true) = status.err_truncated {
-            output("<stderr truncation>".to_string());
-        }
-
         if status.exited {
-            break status.exitcode.unwrap_or(0);
+            break status;
         }
 
         let elapsed = now.elapsed();
@@ -498,7 +468,30 @@ where
         }
     };
 
-    Ok(rc)
+    // Despite appearances, guest-exec-status only returns stdout and
+    // stderr output _after_ the process exits. So parse it now after the
+    // command is done.
+    if let Some(stdout) = status.out_data {
+        String::from_utf8_lossy(&stdout).lines().for_each(|line| {
+            output(line.to_string());
+        })
+    }
+    if let Some(true) = status.out_truncated {
+        output("<stdout truncation>".to_string());
+    }
+
+    // Note we give stderr last as error messages are usually towards
+    // the end of command output (if not the final line)
+    if let Some(stderr) = status.err_data {
+        String::from_utf8_lossy(&stderr).lines().for_each(|line| {
+            output(line.to_string());
+        })
+    }
+    if let Some(true) = status.err_truncated {
+        output("<stderr truncation>".to_string());
+    }
+
+    Ok(status.exitcode.unwrap_or(0))
 }
 
 impl Qemu {

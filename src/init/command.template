@@ -1,0 +1,10 @@
+# This is the entrypoint for vmtest commands in both kernel and image targets.
+# We use a small rendering engine so it's easier to read/write more complex logic.
+
+# Propagate current working directory on host into guest if requested
+{{ if should_cd }}
+cd { host_shared }
+{{ endif }}
+
+# Run user supplied command
+{ command }

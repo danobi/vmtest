@@ -6,5 +6,26 @@
 cd { host_shared }
 {{ endif }}
 
+# Discover where the output chardev is located
+vport=
+for dir in /sys/class/virtio-ports/*; do
+    if [[ "$(cat "$dir/name")" == "{ command_output_port_name }" ]]; then
+        vport_name=$(basename "$dir")
+        vport="/dev/$vport_name"
+    fi
+done
+
+# Send the rest of the script to the output chardev
+if [[ -n "$vport" ]]; then
+    exec > "$vport"
+    exec 2>&1
+else
+    # Make a missing serial port a soft error. We don't necessarily need
+    # streamed command output -- it's completely a UX thing. It's more
+    # likely this fails on images.
+    echo >&2 "vmtest: Failed to locate command output virtio-serial port."
+    echo >&2 "vmtest: Falling back to qemu-guest-agent output capture."
+fi
+
 # Run user supplied command
 { command }

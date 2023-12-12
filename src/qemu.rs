@@ -75,6 +75,8 @@ struct CommandContext {
     host_shared: PathBuf,
     /// User supplied command to run
     command: String,
+    /// virtio-serial output port name
+    command_output_port_name: String,
 }
 
 const QEMU_DEFAULT_ARGS: &[&str] = &["-nodefaults", "-display", "none"];
@@ -721,6 +723,7 @@ impl Qemu {
             should_cd: !self.image && self.rootfs == Target::default_rootfs(),
             host_shared: self.host_shared.clone(),
             command: self.command.clone(),
+            command_output_port_name: COMMAND_OUTPUT_PORT_NAME.into(),
         };
 
         // Same as above, ignore errors cuz only trivial bugs are possible

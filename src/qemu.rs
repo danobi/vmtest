@@ -20,13 +20,16 @@ use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qmp};
 use rand::Rng;
+use serde_derive::Serialize;
 use tempfile::{Builder, NamedTempFile};
+use tinytemplate::{format_unescaped, TinyTemplate};
 
 use crate::output::Output;
 use crate::qga::QgaWrapper;
 use crate::{Mount, Target, VMConfig};
 
 const INIT_SCRIPT: &str = include_str!("init/init.sh");
+const COMMAND_TEMPLATE: &str = include_str!("init/command.template");
 // Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
 const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
@@ -50,11 +53,24 @@ pub struct Qemu {
     qmp_sock: PathBuf,
     command: String,
     host_shared: PathBuf,
+    /// Path to somewhere on the host that the guest should use as rootfs
+    rootfs: PathBuf,
     mounts: HashMap<String, Mount>,
     _init: NamedTempFile,
     updates: Sender<Output>,
     /// Whether or not we are running an image target
     image: bool,
+}
+
+/// Used by templating engine to render command
+#[derive(Serialize)]
+struct CommandContext {
+    /// True if command should change working directory before executing.
+    should_cd: bool,
+    /// Path to directory shared between guest/host
+    host_shared: PathBuf,
+    /// User supplied command to run
+    command: String,
 }
 
 const QEMU_DEFAULT_ARGS: &[&str] = &["-nodefaults", "-display", "none"];
@@ -560,6 +576,7 @@ impl Qemu {
             qmp_sock,
             command: target.command.to_string(),
             host_shared: host_shared.to_owned(),
+            rootfs: target.rootfs.clone(),
             mounts: target.vm.mounts.clone(),
             _init: init,
             updates,
@@ -616,18 +633,23 @@ impl Qemu {
 
     /// Generates a bash script that runs `self.command`
     fn command_script(&self) -> String {
-        if self.image {
-            // Image targets do not share host FS at all, so a `cd` will never succeed
-            self.command.clone()
-        } else {
-            // Kernel targets share host FS so this `cd` should succeed. If it doesn't,
-            // the error is shown to the user as a hint.
-            format!(
-                "cd {}; {}",
-                self.host_shared.to_string_lossy(),
-                &self.command
-            )
-        }
+        // Disable HTML escaping (b/c we're not dealing with HTML)
+        let mut tt = TinyTemplate::new();
+        tt.set_default_formatter(&format_unescaped);
+
+        // We are ok panicing here b/c there should never be a runtime
+        // error compiling the template. Any errors are trivial bugs.
+        tt.add_template("cmd", COMMAND_TEMPLATE).unwrap();
+
+        let context = CommandContext {
+            // Only `cd` for kernel targets that share userspace with host
+            should_cd: !self.image && self.rootfs == Target::default_rootfs(),
+            host_shared: self.host_shared.clone(),
+            command: self.command.clone(),
+        };
+
+        // Same as above, ignore errors cuz only trivial bugs are possible
+        tt.render("cmd", &context).unwrap()
     }
 
     /// Run this target's command inside the VM

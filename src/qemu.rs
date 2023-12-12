@@ -7,6 +7,7 @@ use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::{BufRead, BufReader, Read, Write};
+use std::marker::Send;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -438,6 +439,39 @@ fn vmconfig_args(vm: &VMConfig) -> Vec<OsString> {
     args
 }
 
+/// Stream command output to the output sink
+///
+/// Calling this function will spawn a thread that synchronously reads
+/// from the provided unix domain socket. This is to reduce latency between
+/// command output and text on screen (as opposed to non-blocking reads with
+/// sleeps).
+///
+/// We implicitly rely on the stream closing (via synchronous qemu exit) to
+/// terminate this thread.
+fn stream_command_output<F>(stream: UnixStream, output: F)
+where
+    F: Fn(String) + Send + 'static,
+{
+    let mut reader = BufReader::new(stream);
+
+    thread::spawn(move || {
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    // Remove newline
+                    if let Some('\n') = line.chars().last() {
+                        line.pop();
+                    }
+                    output(line);
+                }
+                Err(e) => debug!("Failed to read from command output stream: {}", e),
+            };
+        }
+    });
+}
+
 /// Run a process inside the VM and wait until completion
 ///
 /// NB: this is not a shell, so you won't get shell features unless you run a
@@ -447,16 +481,21 @@ fn vmconfig_args(vm: &VMConfig) -> Vec<OsString> {
 /// into the VM. This is useful for running user specified commands which may
 /// depend on the calling environment.
 ///
+/// `output_stream` is a unix domain socket that contains the streamed output
+/// of `cmd`. Provide this when output latency is important (for example with
+/// potentially long running `cmd`s).
+///
 /// Returns the exit code if command is run
 fn run_in_vm<F>(
     qga: &QgaWrapper,
-    output: F,
+    output: &F,
     cmd: &str,
     args: &[&str],
     propagate_env: bool,
+    output_stream: Option<UnixStream>,
 ) -> Result<i64>
 where
-    F: Fn(String),
+    F: Fn(String) + Clone + Send + 'static,
 {
     let version = qga.version();
     let qga_args = qga::guest_exec {
@@ -482,6 +521,12 @@ where
         .guest_exec(qga_args)
         .context("Failed to QGA guest-exec")?;
     let pid = handle.pid;
+
+    // If requested, start streaming output. We will still use guest-exec
+    // output facilities as backup (and for streaming error messages).
+    if let Some(stream) = output_stream {
+        stream_command_output(stream, (*output).clone());
+    }
 
     let now = time::Instant::now();
     let mut period = Duration::from_millis(200);
@@ -642,13 +687,13 @@ impl Qemu {
         bail!("QEMU sockets did not appear in time");
     }
 
-    /// Connect to QMP socket
-    fn connect_to_qmp(&self) -> Result<UnixStream> {
+    /// Connect to unix domain socket
+    fn connect_to_uds(&self, path: &Path) -> Result<UnixStream> {
         let now = time::Instant::now();
         let timeout = Duration::from_secs(5);
 
         while now.elapsed() < timeout {
-            if let Ok(stream) = UnixStream::connect(&self.qmp_sock) {
+            if let Ok(stream) = UnixStream::connect(path) {
                 return Ok(stream);
             }
 
@@ -686,9 +731,14 @@ impl Qemu {
     ///
     /// Note the command is run in a bash shell
     fn run_command(&self, qga: &QgaWrapper) -> Result<i64> {
-        let output_fn = |line: String| {
-            let _ = self.updates.send(Output::Command(line));
+        let updates = self.updates.clone();
+        let output_fn = move |line: String| {
+            let _ = updates.send(Output::Command(line));
         };
+
+        let output_stream = self
+            .connect_to_uds(&self.command_sock)
+            .context("Failed to connect to command output socket")?;
 
         let cmd = "bash";
         let script = self.command_script();
@@ -696,7 +746,14 @@ impl Qemu {
 
         // Note we are propagating environment variables for this command
         // only if it's a kernel target.
-        run_in_vm(qga, output_fn, cmd, &args, !self.image)
+        run_in_vm(
+            qga,
+            &output_fn,
+            cmd,
+            &args,
+            !self.image,
+            Some(output_stream),
+        )
     }
 
     /// Mount shared directory in the guest
@@ -707,11 +764,12 @@ impl Qemu {
         mount_tag: &str,
         ro: bool,
     ) -> Result<()> {
-        let output_fn = |line: String| {
-            let _ = self.updates.send(Output::Setup(line));
+        let updates = self.updates.clone();
+        let output_fn = move |line: String| {
+            let _ = updates.send(Output::Setup(line));
         };
 
-        let rc = run_in_vm(qga, output_fn, "mkdir", &["-p", guest_path], false)?;
+        let rc = run_in_vm(qga, &output_fn, "mkdir", &["-p", guest_path], false, None)?;
         if rc != 0 {
             bail!("Failed to mkdir {}: exit code {}", guest_path, rc);
         }
@@ -726,10 +784,11 @@ impl Qemu {
             };
             rc = run_in_vm(
                 qga,
-                output_fn,
+                &output_fn,
                 "mount",
                 &["-t", "9p", "-o", &mount_opts, mount_tag, guest_path],
                 false,
+                None,
             )?;
 
             // Exit code 32 from mount(1) indicates mount failure.
@@ -750,7 +809,7 @@ impl Qemu {
 
     /// Sync guest filesystems so any in-flight data has time to go out to host
     fn sync(&self, qga: &QgaWrapper) -> Result<()> {
-        let rc = run_in_vm(qga, |_| {}, "sync", &[], false)?;
+        let rc = run_in_vm(qga, &|_| {}, "sync", &[], false, None)?;
         if rc != 0 {
             bail!("Failed to sync guest filesystems: exit code {}", rc);
         }
@@ -874,7 +933,7 @@ impl Qemu {
         }
 
         // Connect to QMP socket
-        let qmp_stream = match self.connect_to_qmp() {
+        let qmp_stream = match self.connect_to_uds(&self.qmp_sock) {
             Ok(s) => s,
             Err(e) => {
                 let err = Self::extract_child_stderr(&mut child);

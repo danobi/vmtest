@@ -54,6 +54,91 @@ fn test_run() {
     assert_eq!(failed, 0);
 }
 
+// Expect that when we run multiple targets, we get the correct number of failures.
+#[test]
+fn test_run_multiple_return_number_failures() {
+    let config = Config {
+        target: vec![
+            Target {
+                name: "uefi image boots with uefi flag".to_string(),
+                image: Some(asset("image-uefi.raw-efi")),
+                uefi: true,
+                command: "exit 1".to_string(),
+                kernel: None,
+                kernel_args: None,
+                rootfs: Target::default_rootfs(),
+                vm: VMConfig::default(),
+            },
+            Target {
+                name: "uefi image boots with uefi flag 2".to_string(),
+                image: Some(asset("image-uefi.raw-efi")),
+                uefi: true,
+                command: "exit 1".to_string(),
+                kernel: None,
+                kernel_args: None,
+                rootfs: Target::default_rootfs(),
+                vm: VMConfig::default(),
+            },
+            Target {
+                name: "not uefi image boots without uefi flag".to_string(),
+                image: Some(asset("image-not-uefi.raw")),
+                uefi: false,
+                command: "/mnt/vmtest/main.sh nixos".to_string(),
+                kernel: None,
+                kernel_args: None,
+                rootfs: Target::default_rootfs(),
+                vm: VMConfig::default(),
+            },
+        ],
+    };
+    let (vmtest, _dir) = setup(config, &["main.sh"]);
+    let ui = Ui::new(vmtest);
+    let failed = ui.run(&*FILTER_ALL, false);
+    assert_eq!(failed, 2);
+}
+
+// Expect that when we run a single target, we return the return code of the command.
+#[test]
+fn test_run_single_return_number_return_code() {
+    let config = Config {
+        target: vec![Target {
+            name: "not uefi image boots without uefi flag".to_string(),
+            image: Some(asset("image-not-uefi.raw")),
+            uefi: false,
+            command: "exit 12".to_string(),
+            kernel: None,
+            kernel_args: None,
+            rootfs: Target::default_rootfs(),
+            vm: VMConfig::default(),
+        }],
+    };
+    let (vmtest, _dir) = setup(config, &["main.sh"]);
+    let ui = Ui::new(vmtest);
+    let failed = ui.run(&*FILTER_ALL, false);
+    assert_eq!(failed, 12);
+}
+
+// Expect that when we fail to start the vm, we return 69 (EX_UNAVAILABLE).
+#[test]
+fn test_vmtest_infra_error() {
+    let config = Config {
+        target: vec![Target {
+            name: "not an actual image, should return EX_UNAVAILABLE".to_string(),
+            image: Some(asset("not_an_actual_image")),
+            uefi: false,
+            command: "exit 12".to_string(),
+            kernel: None,
+            kernel_args: None,
+            rootfs: Target::default_rootfs(),
+            vm: VMConfig::default(),
+        }],
+    };
+    let (vmtest, _dir) = setup(config, &["main.sh"]);
+    let ui = Ui::new(vmtest);
+    let failed = ui.run(&*FILTER_ALL, false);
+    assert_eq!(failed, 69);
+}
+
 // Expect we can run each target one by one, sucessfully
 #[test]
 fn test_run_one() {

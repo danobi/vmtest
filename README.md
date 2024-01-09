@@ -83,6 +83,26 @@ $ vmtest -k ./bzImage-v6.2 "uname -r"
 6.2.0
 ```
 
+To run an arbitrary command in a guest VM with a different kernel and rootfs:
+```
+$ vmtest -k ./bzImage-v6.2 -r ./rootfs "uname -r"
+=> bzImage-v6.2
+===> Booting
+===> Setting up VM
+===> Running command
+6.2.0
+```
+
+To run an arbitrary command from a kernel from another architecture in a guest VM:
+```
+$ vmtest -k ./kernels/Image-arm64 -r ./rootfs/ubuntu-lunar-arm64 -a aarch64 "uname -r"
+=> Image-arm64
+===> Booting
+===> Setting up VM
+===> Running command
+6.6.0-rc5-ga4a0c99f10ca-dirty
+```
+
 See `vmtest --help` for all options and flags.
 
 ### Config file interface
@@ -102,6 +122,13 @@ command = "uname -r | grep -e aws$"
 name = "OCI image"
 image = "./oci-stage-6/oci-stage-6-disk001.qcow2"
 command = "ls -l /mnt/vmtest && cat /proc/thiswillfail"
+
+[[target]]
+name = "Foreign Architecture"
+kernel = "./kernels/Image-arm64"
+arch = "aarch64"
+rootfs = "./rootfs/ubuntu-lunar-arm64"
+command = "uname -m | grep aarch64"
 ```
 
 In the above config, two see two defined targets: "AWS kernel" and "OCI image".
@@ -134,6 +161,11 @@ drwxr-xr-x 1 ubuntu ubuntu        200 Nov 14 20:41 avx-gateway-oci-stage-6
 cat: /proc/thiswillfail: No such file or directory
 Command failed with exit code: 1
 FAILED
+=> Foreign Architecture
+===> Booting
+===> Setting up VM
+===> Running command
+aarch64
 ```
 
 For full configuration documentation, see [config.md](./docs/config.md).

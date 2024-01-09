@@ -121,6 +121,21 @@ impl Target {
     }
 }
 
+impl Default for Target {
+    fn default() -> Self {
+        Self {
+            name: "".into(),
+            image: None,
+            uefi: false,
+            kernel: None,
+            kernel_args: None,
+            rootfs: Self::default_rootfs(),
+            command: "".into(),
+            vm: VMConfig::default(),
+        }
+    }
+}
+
 /// Config containing full test matrix
 #[derive(Deserialize)]
 pub struct Config {

@@ -39,6 +39,9 @@ The following fields are supported:
     * Path to rootfs to test against
     * If a relative path is provided, it will be interpreted as relative to
       `vmtest.toml`
+* `arch` (string)
+    * Default: the architecture vmtest was built for.
+    * Under which machine architecture to run the kernel.
 * `command` (string)
     * Required field
     * Command to run inside VM

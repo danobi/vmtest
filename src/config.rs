@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env::consts::ARCH;
 use std::path::PathBuf;
 use std::vec::Vec;
 
@@ -106,6 +107,9 @@ pub struct Target {
     /// Default: /
     #[serde(default = "Target::default_rootfs")]
     pub rootfs: PathBuf,
+    /// Arch to run
+    #[serde(default = "Target::default_arch")]
+    pub arch: String,
     /// Command to run inside virtual machine.
     pub command: String,
 
@@ -119,6 +123,10 @@ impl Target {
     pub fn default_rootfs() -> PathBuf {
         "/".into()
     }
+    /// Default architecure to use if none are specified.
+    pub fn default_arch() -> String {
+        ARCH.to_string()
+    }
 }
 
 impl Default for Target {
@@ -130,6 +138,7 @@ impl Default for Target {
             kernel: None,
             kernel_args: None,
             rootfs: Self::default_rootfs(),
+            arch: Self::default_arch(),
             command: "".into(),
             vm: VMConfig::default(),
         }

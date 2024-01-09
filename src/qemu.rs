@@ -59,6 +59,7 @@ pub struct Qemu {
     host_shared: PathBuf,
     /// Path to somewhere on the host that the guest should use as rootfs
     rootfs: PathBuf,
+    arch: String,
     mounts: HashMap<String, Mount>,
     _init: NamedTempFile,
     updates: Sender<Output>,
@@ -82,8 +83,8 @@ struct CommandContext {
 const QEMU_DEFAULT_ARGS: &[&str] = &["-nodefaults", "-display", "none"];
 
 /// Whether or not the host supports KVM
-fn host_supports_kvm() -> bool {
-    Path::new("/dev/kvm").exists()
+fn host_supports_kvm(arch: &str) -> bool {
+    arch == ARCH && Path::new("/dev/kvm").exists()
 }
 
 // Generate a path to a randomly named socket
@@ -210,16 +211,16 @@ fn guest_agent_args(sock: &Path) -> Vec<OsString> {
 }
 
 /// Generate arguments for full KVM virtualization if host supports it
-fn kvm_args() -> Vec<&'static str> {
+fn kvm_args(arch: &str) -> Vec<&'static str> {
     let mut args = Vec::new();
 
-    if host_supports_kvm() {
+    if host_supports_kvm(arch) {
         args.push("-enable-kvm");
         args.push("-cpu");
         args.push("host");
     } else {
         args.push("-cpu");
-        match ARCH {
+        match arch {
             "aarch64" | "s390x" => {
                 args.push("max");
             }
@@ -232,10 +233,10 @@ fn kvm_args() -> Vec<&'static str> {
 }
 
 /// Generate arguments for which qemu machine to use
-fn machine_args() -> Vec<&'static str> {
+fn machine_args(arch: &str) -> Vec<&'static str> {
     let mut args = Vec::new();
 
-    if ARCH == "aarch64" {
+    if arch == "aarch64" {
         // aarch64 does not have default machines.
         args.push("-machine");
         args.push("virt,gic-version=3");
@@ -311,8 +312,8 @@ fn uefi_firmware_args(bios: Option<&Path>) -> Vec<OsString> {
 }
 
 /// Generate which serial device to use based on the architecture used.
-fn console_device() -> String {
-    match ARCH {
+fn console_device(arch: &str) -> String {
+    match arch {
         "aarch64" => "ttyAMA0".into(),
         _ => "0".into(),
     }
@@ -321,7 +322,12 @@ fn console_device() -> String {
 ///
 /// The basic idea is we'll map host root onto guest root. And then use
 /// the host's systemd as init but boot into `rescue.target` in the guest.
-fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) -> Vec<OsString> {
+fn kernel_args(
+    kernel: &Path,
+    arch: &str,
+    init: &Path,
+    additional_kargs: Option<&String>,
+) -> Vec<OsString> {
     let mut args = Vec::new();
 
     // Set the guest kernel
@@ -345,10 +351,10 @@ fn kernel_args(kernel: &Path, init: &Path, additional_kargs: Option<&String>) ->
     cmdline.push("rw".into());
 
     // Show as much console output as we can bear
-    cmdline.push(format!("earlyprintk=serial,{},115200", console_device()).into());
+    cmdline.push(format!("earlyprintk=serial,{},115200", console_device(arch)).into());
     // Disable userspace writing ratelimits
     cmdline.push("printk.devkmsg=on".into());
-    cmdline.push(format!("console={},115200", console_device()).into());
+    cmdline.push(format!("console={},115200", console_device(arch)).into());
     cmdline.push("loglevel=7".into());
 
     // We are not using RAID and this will help speed up boot
@@ -594,7 +600,7 @@ impl Qemu {
         let command_sock = gen_sock("cmdout");
         let (init, guest_init) = gen_init(&target.rootfs).context("Failed to generate init")?;
 
-        let mut c = Command::new(format!("qemu-system-{}", ARCH));
+        let mut c = Command::new(format!("qemu-system-{}", target.arch));
 
         c.args(QEMU_DEFAULT_ARGS)
             .stdin(Stdio::null())
@@ -602,8 +608,8 @@ impl Qemu {
             .stderr(Stdio::piped())
             .arg("-serial")
             .arg("stdio")
-            .args(kvm_args())
-            .args(machine_args())
+            .args(kvm_args(&target.arch))
+            .args(machine_args(&target.arch))
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
             .args(virtio_serial_args(&command_sock));
@@ -622,6 +628,7 @@ impl Qemu {
             ));
             c.args(kernel_args(
                 &kernel,
+                &target.arch,
                 guest_init.as_path(),
                 target.kernel_args.as_ref(),
             ));
@@ -654,6 +661,7 @@ impl Qemu {
             command_sock,
             host_shared: host_shared.to_owned(),
             rootfs: target.rootfs.clone(),
+            arch: target.arch.clone(),
             mounts: target.vm.mounts.clone(),
             _init: init,
             updates,
@@ -960,7 +968,7 @@ impl Qemu {
         debug!("QMP info: {:#?}", qmp_info);
 
         // Connect to QGA socket
-        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm());
+        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm(&self.arch));
         let qga = match qga {
             Ok(q) => q,
             Err(e) => {

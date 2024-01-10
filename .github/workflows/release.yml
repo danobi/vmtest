@@ -29,24 +29,7 @@ jobs:
 
     - name: Build statically linked vmtest
       run: |
-        function gnu_to_debian() {
-          # Funtion to convert an architecture in Debian to its GNU equivalent,
-          # e.g amd64 -> x86_64
-          # CPUTABLE contains a list of debian_arch\tgnu_arch per line
-          # Compare of the first field matches and print the second one.
-          awk -v gnu_arch="$1" '$2 ~ gnu_arch {print $1}' /usr/share/dpkg/cputable
-        }
-
-        ARCHS=(x86_64 aarch64 s390x)
-
-        for arch in "${ARCHS[@]}"; do
-          # Install the required toolchain
-          sudo apt install -y gcc-${arch//_/-}-linux-gnu
-          rustup target add "${arch}-unknown-linux-gnu"
-          # Compile the binary
-          RUSTFLAGS="-C target-feature=+crt-static -C linker=/usr/bin/${arch}-linux-gnu-gcc" cargo build --release --target "${arch}-unknown-linux-gnu"
-          cp "./target/${arch}-unknown-linux-gnu/release/vmtest" "./vmtest-$(gnu_to_debian "${arch}")"
-        done
+        ./scripts/build_release.sh
 
     - name: Create release
       uses: softprops/action-gh-release@v1

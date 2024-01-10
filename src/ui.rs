@@ -4,7 +4,6 @@ use std::thread;
 
 use anyhow::{anyhow, bail, Error, Result};
 use console::{strip_ansi_codes, style, truncate_str, Style, Term};
-use regex::Regex;
 
 use crate::output::Output;
 use crate::vmtest::Vmtest;
@@ -259,14 +258,9 @@ impl Ui {
     /// In one-liner mode, it return the return code of the command, or EX_UNAVAILABLE if there
     /// is an issue that prevents running the command.
     /// When multiple targets are ran, it returns how many targets failed.
-    pub fn run(self, filter: &Regex, show_cmd: bool) -> i32 {
+    pub fn run(self, show_cmd: bool) -> i32 {
         let mut failed = 0;
-        let targets = self
-            .vmtest
-            .targets()
-            .iter()
-            .filter(|t| filter.is_match(&t.name))
-            .collect::<Vec<_>>();
+        let targets = self.vmtest.targets();
         let single_cmd = targets.len() == 1;
 
         for (idx, target) in targets.iter().enumerate() {

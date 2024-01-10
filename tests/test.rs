@@ -4,8 +4,6 @@ use std::fs;
 use std::path::Path;
 use std::sync::mpsc::channel;
 
-use lazy_static::lazy_static;
-use regex::Regex;
 use tempfile::tempdir_in;
 use test_log::test;
 
@@ -16,10 +14,6 @@ use vmtest::{Config, Target, VMConfig};
 
 mod helpers;
 use helpers::*;
-
-lazy_static! {
-    static ref FILTER_ALL: Regex = Regex::new(".*").unwrap();
-}
 
 // Expect that we can run the entire matrix successfully
 #[test]
@@ -44,7 +38,7 @@ fn test_run() {
     };
     let (vmtest, _dir) = setup(config, &["main.sh"]);
     let ui = Ui::new(vmtest);
-    let failed = ui.run(&*FILTER_ALL, false);
+    let failed = ui.run(false);
     assert_eq!(failed, 0);
 }
 
@@ -78,7 +72,7 @@ fn test_run_multiple_return_number_failures() {
     };
     let (vmtest, _dir) = setup(config, &["main.sh"]);
     let ui = Ui::new(vmtest);
-    let failed = ui.run(&*FILTER_ALL, false);
+    let failed = ui.run(false);
     assert_eq!(failed, 2);
 }
 
@@ -96,7 +90,7 @@ fn test_run_single_return_number_return_code() {
     };
     let (vmtest, _dir) = setup(config, &["main.sh"]);
     let ui = Ui::new(vmtest);
-    let failed = ui.run(&*FILTER_ALL, false);
+    let failed = ui.run(false);
     assert_eq!(failed, 12);
 }
 
@@ -114,7 +108,7 @@ fn test_vmtest_infra_error() {
     };
     let (vmtest, _dir) = setup(config, &["main.sh"]);
     let ui = Ui::new(vmtest);
-    let failed = ui.run(&*FILTER_ALL, false);
+    let failed = ui.run(false);
     assert_eq!(failed, 69);
 }
 

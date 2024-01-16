@@ -30,6 +30,8 @@ for arch in "${ARCHS[@]}"; do
 done
 
 ARCHS_TO_EXPAND=$(IFS=, ; echo "${X_ARCHS[*]}")
+
+sudo apt update
 eval sudo apt install -y "gcc-{${ARCHS_TO_EXPAND//_/-}}-linux-gnu"
 eval rustup target add "{${ARCHS_TO_EXPAND}}-unknown-linux-gnu"
 

@@ -753,6 +753,16 @@ impl Qemu {
             let _ = updates.send(Output::Command(line));
         };
 
+        // Set read timeout to None so we can block indefinitely in case the VM
+        // is having a hard time, like being overloaded. See #40.
+        // But reset it back to the old value when we're done.
+        let old_timeout = qga.read_timeout()?;
+        scopeguard::defer! {
+            // Restore old timeout
+            let _ = qga.set_read_timeout(old_timeout);
+        }
+        qga.set_read_timeout(None)?;
+
         let output_stream = connect_to_uds(&self.command_sock)
             .context("Failed to connect to command output socket")?;
 

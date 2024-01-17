@@ -99,6 +99,21 @@ impl QgaWrapper {
         bail!("Timed out waiting for QGA connection");
     }
 
+    /// Set the read timeout of the inner UnixStream.
+    ///
+    /// If the provided value is [`None`], then [`read`] calls will block
+    /// indefinitely. An [`Err`] is returned if the zero [`Duration`] is passed to this
+    /// method.
+    pub fn set_read_timeout(&self, timeout: Option<Duration>) -> Result<()> {
+        self.stream.set_read_timeout(timeout)?;
+        Ok(())
+    }
+
+    /// Returns the read timeout of the inner UnixStream.
+    pub fn read_timeout(&self) -> Result<Option<Duration>> {
+        Ok(self.stream.read_timeout()?)
+    }
+
     /// Run a command inside the guest
     pub fn guest_exec(
         &self,

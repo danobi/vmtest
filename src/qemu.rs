@@ -645,7 +645,10 @@ impl Qemu {
         c.args(vmconfig_args(&target.vm));
 
         if log_enabled!(Level::Error) {
-            let args = c.get_args().map(|a| a.to_string_lossy()).join(" ");
+            let args = c
+                .get_args()
+                .map(|a| format!("\"{}\"", a.to_string_lossy()))
+                .join(" ");
             debug!(
                 "qemu invocation: {} {}",
                 c.get_program().to_string_lossy(),

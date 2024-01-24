@@ -686,7 +686,7 @@ impl Qemu {
             let qmp_ok = self
                 .qmp_sock
                 .try_exists()
-                .with_context(|| format!("Cannot stat {}", self.qga_sock.display()))?;
+                .with_context(|| format!("Cannot stat {}", self.qmp_sock.display()))?;
 
             if qga_ok && qmp_ok {
                 return Ok(());
@@ -716,7 +716,7 @@ impl Qemu {
         }
 
         // Run one final time to return the real error
-        UnixStream::connect(&self.qmp_sock).map_err(|e| anyhow!(e))
+        UnixStream::connect(path).map_err(|e| anyhow!(e))
     }
 
     /// Generates a bash script that runs `self.command`

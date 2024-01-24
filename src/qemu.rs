@@ -590,6 +590,25 @@ where
     Ok(status.exitcode.unwrap_or(0))
 }
 
+/// Connect to unix domain socket
+fn connect_to_uds(path: &Path) -> Result<UnixStream> {
+    let now = time::Instant::now();
+    let timeout = Duration::from_secs(5);
+
+    while now.elapsed() < timeout {
+        if let Ok(stream) = UnixStream::connect(path) {
+            return Ok(stream);
+        }
+
+        // The delay is usually quite small, so keep the retry interval low
+        // to make vmtest appear snappy.
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    // Run one final time to return the real error
+    UnixStream::connect(path).map_err(|e| anyhow!(e))
+}
+
 impl Qemu {
     /// Construct a QEMU instance backing a vmtest target.
     ///
@@ -700,25 +719,6 @@ impl Qemu {
         bail!("QEMU sockets did not appear in time");
     }
 
-    /// Connect to unix domain socket
-    fn connect_to_uds(&self, path: &Path) -> Result<UnixStream> {
-        let now = time::Instant::now();
-        let timeout = Duration::from_secs(5);
-
-        while now.elapsed() < timeout {
-            if let Ok(stream) = UnixStream::connect(path) {
-                return Ok(stream);
-            }
-
-            // The delay is usually quite small, so keep the retry interval low
-            // to make vmtest appear snappy.
-            thread::sleep(Duration::from_millis(50));
-        }
-
-        // Run one final time to return the real error
-        UnixStream::connect(path).map_err(|e| anyhow!(e))
-    }
-
     /// Generates a bash script that runs `self.command`
     fn command_script(&self) -> String {
         // Disable HTML escaping (b/c we're not dealing with HTML)
@@ -750,8 +750,7 @@ impl Qemu {
             let _ = updates.send(Output::Command(line));
         };
 
-        let output_stream = self
-            .connect_to_uds(&self.command_sock)
+        let output_stream = connect_to_uds(&self.command_sock)
             .context("Failed to connect to command output socket")?;
 
         let cmd = "bash";
@@ -947,7 +946,7 @@ impl Qemu {
         }
 
         // Connect to QMP socket
-        let qmp_stream = match self.connect_to_uds(&self.qmp_sock) {
+        let qmp_stream = match connect_to_uds(&self.qmp_sock) {
             Ok(s) => s,
             Err(e) => {
                 let err = Self::extract_child_stderr(&mut child);

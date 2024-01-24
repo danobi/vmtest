@@ -48,6 +48,9 @@ const OVMF_PATHS: &[&str] = &[
     "/usr/share/edk2-ovmf/x64/OVMF_CODE.fd",
 ];
 
+/// A shorthand type representing a QMP stream over a Unix domain socket
+type QmpUnixStream = qapi::Stream<BufReader<UnixStream>, UnixStream>;
+
 /// Represents a single QEMU instance
 pub struct Qemu {
     process: Command,
@@ -928,6 +931,7 @@ impl Qemu {
     ) -> Result<(
         scopeguard::ScopeGuard<Child, impl FnOnce(Child)>,
         QgaWrapper,
+        Qmp<QmpUnixStream>,
     )> {
         let _ = self.updates.send(Output::BootStart);
         let mut child = match self.process.spawn() {
@@ -939,11 +943,43 @@ impl Qemu {
         Self::stream_child_output(self.updates.clone(), &mut child);
 
         // Ensure child is cleaned up even if we bail early
-        let child = scopeguard::guard(child, Self::child_cleanup);
+        let mut child = scopeguard::guard(child, Self::child_cleanup);
 
         if let Err(e) = self.wait_for_qemu() {
             return Err(e).context("Failed waiting for QEMU to be ready");
         }
+
+        // Connect to QMP socket
+        let qmp_unix_stream = match connect_to_uds(&self.qmp_sock) {
+            Ok(s) => s,
+            Err(e) => {
+                let err = Self::extract_child_stderr(&mut child);
+                return Err(e).context("Failed to connect QMP").context(err);
+            }
+        };
+
+        // UnixStream is not directly cloneable, so we cannot use `Qmp::from_stream`
+        // without borrowing the stream. Instead we create a new stream from the
+        // qmp_unix_stream and pass it into Qmp::new, which takes ownership of the
+        // stream.
+        let qmp_stream = qapi::Stream::new(
+            BufReader::new(
+                qmp_unix_stream
+                    .try_clone()
+                    .context("Failed to clone QMP Unix Stream")?,
+            ),
+            qmp_unix_stream,
+        );
+        let mut qmp = Qmp::new(qmp_stream);
+
+        let qmp_info = match qmp.handshake() {
+            Ok(i) => i,
+            Err(e) => {
+                let err = Self::extract_child_stderr(&mut child);
+                return Err(e).context("QMP handshake failed").context(err);
+            }
+        };
+        debug!("QMP info: {:#?}", qmp_info);
 
         // Connect to QGA socket
         let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm(&self.arch));
@@ -953,9 +989,10 @@ impl Qemu {
                 return Err(e).context("Failed to connect QGA");
             }
         };
+
         let _ = self.updates.send(Output::BootEnd(Ok(())));
 
-        Ok((child, qga))
+        Ok((child, qga, qmp))
     }
 
     /// Setup the VM
@@ -990,8 +1027,8 @@ impl Qemu {
     /// constructor.
     pub fn run(mut self) {
         // Start QEMU
-        let (mut child, qga) = match self.boot_vm() {
-            Ok((c, qga)) => (c, qga),
+        let (mut child, qga, mut qmp) = match self.boot_vm() {
+            Ok((c, qga, qmp)) => (c, qga, qmp),
             Err(e) => {
                 let _ = self.updates.send(Output::BootEnd(Err(e)));
                 return;
@@ -1002,28 +1039,6 @@ impl Qemu {
             let _ = self.updates.send(Output::SetupEnd(Err(e)));
             return;
         }
-
-        // Connect to QMP socket
-        let qmp_stream = match connect_to_uds(&self.qmp_sock) {
-            Ok(s) => s,
-            Err(e) => {
-                let err = Self::extract_child_stderr(&mut child);
-                let e = Err(e).context("Failed to connect QMP").context(err);
-                let _ = self.updates.send(Output::BootEnd(e));
-                return;
-            }
-        };
-        let mut qmp = Qmp::from_stream(&qmp_stream);
-        let qmp_info = match qmp.handshake() {
-            Ok(i) => i,
-            Err(e) => {
-                let err = Self::extract_child_stderr(&mut child);
-                let e = Err(e).context("QMP handshake failed").context(err);
-                let _ = self.updates.send(Output::BootEnd(e));
-                return;
-            }
-        };
-        debug!("QMP info: {:#?}", qmp_info);
 
         // Run command in VM
         let _ = self.updates.send(Output::CommandStart);

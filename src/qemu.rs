@@ -920,39 +920,65 @@ impl Qemu {
         err
     }
 
+    /// Boot the VM and connect to QGA
+    ///
+    /// Returns the child process and QGA wrapper on success, an error otherwise.
+    fn boot_vm(
+        &mut self,
+    ) -> Result<(
+        scopeguard::ScopeGuard<Child, impl FnOnce(Child)>,
+        QgaWrapper,
+    )> {
+        let _ = self.updates.send(Output::BootStart);
+        let mut child = match self.process.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                return Err(e).context("Failed to spawn QEMU");
+            }
+        };
+        Self::stream_child_output(self.updates.clone(), &mut child);
+
+        // Ensure child is cleaned up even if we bail early
+        let child = scopeguard::guard(child, Self::child_cleanup);
+
+        if let Err(e) = self.wait_for_qemu() {
+            return Err(e).context("Failed waiting for QEMU to be ready");
+        }
+
+        // Connect to QGA socket
+        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm(&self.arch));
+        let qga = match qga {
+            Ok(q) => q,
+            Err(e) => {
+                return Err(e).context("Failed to connect QGA");
+            }
+        };
+        let _ = self.updates.send(Output::BootEnd(Ok(())));
+
+        Ok((child, qga))
+    }
+
     /// Run the target to completion
     ///
     /// Errors and return status are reported through the `updates` channel passed into the
     /// constructor.
     pub fn run(mut self) {
-        let _ = self.updates.send(Output::BootStart);
-        let mut child = match self.process.spawn() {
-            Ok(c) => c,
+        // Start QEMU
+        let (mut child, qga) = match self.boot_vm() {
+            Ok((c, qga)) => (c, qga),
             Err(e) => {
-                let _ = self
-                    .updates
-                    .send(Output::BootEnd(Err(e).context("Failed to spawn QEMU")));
+                let _ = self.updates.send(Output::BootEnd(Err(e)));
                 return;
             }
         };
-        Self::stream_child_output(self.updates.clone(), &mut child);
-        // Ensure child is cleaned up even if we bail early
-        let mut child = scopeguard::guard(child, Self::child_cleanup);
-
-        if let Err(e) = self.wait_for_qemu() {
-            let _ = self.updates.send(Output::BootEnd(
-                Err(e).context("Failed waiting for QEMU to be ready"),
-            ));
-        }
 
         // Connect to QMP socket
         let qmp_stream = match connect_to_uds(&self.qmp_sock) {
             Ok(s) => s,
             Err(e) => {
                 let err = Self::extract_child_stderr(&mut child);
-                let _ = self.updates.send(Output::BootEnd(
-                    Err(e).context("Failed to connect QMP").context(err),
-                ));
+                let e = Err(e).context("Failed to connect QMP").context(err);
+                let _ = self.updates.send(Output::BootEnd(e));
                 return;
             }
         };
@@ -961,26 +987,12 @@ impl Qemu {
             Ok(i) => i,
             Err(e) => {
                 let err = Self::extract_child_stderr(&mut child);
-                let _ = self.updates.send(Output::BootEnd(
-                    Err(e).context("QMP handshake failed").context(err),
-                ));
+                let e = Err(e).context("QMP handshake failed").context(err);
+                let _ = self.updates.send(Output::BootEnd(e));
                 return;
             }
         };
         debug!("QMP info: {:#?}", qmp_info);
-
-        // Connect to QGA socket
-        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm(&self.arch));
-        let qga = match qga {
-            Ok(q) => q,
-            Err(e) => {
-                let _ = self
-                    .updates
-                    .send(Output::BootEnd(Err(e).context("Failed to connect QGA")));
-                return;
-            }
-        };
-        let _ = self.updates.send(Output::BootEnd(Ok(())));
 
         // Mount shared directory inside guest
         let _ = self.updates.send(Output::SetupStart);

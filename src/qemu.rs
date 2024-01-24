@@ -958,6 +958,32 @@ impl Qemu {
         Ok((child, qga))
     }
 
+    /// Setup the VM
+    ///
+    /// After the VM is booted and Qga is available, we need to setup the VM
+    /// by mounting the shared directory and any other additional mounts.
+    fn setup_vm(&mut self, qga: &QgaWrapper) -> Result<()> {
+        // Mount shared directory inside guest
+        let _ = self.updates.send(Output::SetupStart);
+        if let Err(e) =
+            self.mount_in_guest(qga, SHARED_9P_FS_MOUNT_PATH, SHARED_9P_FS_MOUNT_TAG, false)
+        {
+            return Err(e).context("Failed to mount shared directory in guest");
+        }
+        for (guest_path, mount) in &self.mounts {
+            if let Err(e) = self.mount_in_guest(
+                qga,
+                guest_path,
+                &format!("mount{}", hash(&mount.host_path)),
+                !mount.writable,
+            ) {
+                return Err(e).context(format!("Failed to mount {} in guest", guest_path));
+            }
+        }
+        let _ = self.updates.send(Output::SetupEnd(Ok(())));
+        Ok(())
+    }
+
     /// Run the target to completion
     ///
     /// Errors and return status are reported through the `updates` channel passed into the
@@ -971,6 +997,11 @@ impl Qemu {
                 return;
             }
         };
+
+        if let Err(e) = self.setup_vm(&qga) {
+            let _ = self.updates.send(Output::SetupEnd(Err(e)));
+            return;
+        }
 
         // Connect to QMP socket
         let qmp_stream = match connect_to_uds(&self.qmp_sock) {
@@ -993,31 +1024,6 @@ impl Qemu {
             }
         };
         debug!("QMP info: {:#?}", qmp_info);
-
-        // Mount shared directory inside guest
-        let _ = self.updates.send(Output::SetupStart);
-        if let Err(e) =
-            self.mount_in_guest(&qga, SHARED_9P_FS_MOUNT_PATH, SHARED_9P_FS_MOUNT_TAG, false)
-        {
-            let _ = self.updates.send(Output::SetupEnd(
-                Err(e).context("Failed to mount shared directory in guest"),
-            ));
-            return;
-        }
-        for (guest_path, mount) in &self.mounts {
-            if let Err(e) = self.mount_in_guest(
-                &qga,
-                guest_path,
-                &format!("mount{}", hash(&mount.host_path)),
-                !mount.writable,
-            ) {
-                let _ = self.updates.send(Output::SetupEnd(
-                    Err(e).context(format!("Failed to mount {} in guest", guest_path)),
-                ));
-                return;
-            }
-        }
-        let _ = self.updates.send(Output::SetupEnd(Ok(())));
 
         // Run command in VM
         let _ = self.updates.send(Output::CommandStart);

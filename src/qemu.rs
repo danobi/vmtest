@@ -35,6 +35,7 @@ const COMMAND_TEMPLATE: &str = include_str!("init/command.template");
 const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
 const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
 const COMMAND_OUTPUT_PORT_NAME: &str = "org.qemu.virtio_serial.0";
+const MAGIC_INTERACTIVE_COMMAND: &str = "-";
 
 const SHARED_9P_FS_MOUNT_PATH: &str = "/mnt/vmtest";
 const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=loose,msize=1048576";
@@ -625,9 +626,6 @@ impl Qemu {
         let mut c = Command::new(format!("qemu-system-{}", target.arch));
 
         c.args(QEMU_DEFAULT_ARGS)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
             .arg("-serial")
             .arg("stdio")
             .args(kvm_args(&target.arch))
@@ -678,7 +676,7 @@ impl Qemu {
             );
         }
 
-        Ok(Self {
+        let mut qemu = Self {
             process: c,
             qga_sock,
             qmp_sock,
@@ -691,7 +689,27 @@ impl Qemu {
             _init: init,
             updates,
             image: target.image.is_some(),
-        })
+        };
+
+        // We still need to possibly redirect the standard streams.
+        // By default, when calling `spawn`, the child process inherits
+        // the standard streams of the parent. This is not what we want
+        // when running in non-interactive mode.
+        if !qemu.interactive() {
+            qemu.process
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+        }
+        Ok(qemu)
+    }
+
+    /// Return whether or not this target is ran in interactive mode
+    ///
+    /// Interactive mode means we are not running a command and we are not
+    /// running in image mode.
+    fn interactive(&self) -> bool {
+        self.command == MAGIC_INTERACTIVE_COMMAND && !self.image
     }
 
     /// Waits for QMP and QGA sockets to appear
@@ -950,7 +968,11 @@ impl Qemu {
                 return Err(e).context("Failed to spawn QEMU");
             }
         };
-        Self::stream_child_output(self.updates.clone(), &mut child);
+        if !self.interactive() {
+            // If we are running a command, we need to stream stdout
+            // to the receiver.
+            Self::stream_child_output(self.updates.clone(), &mut child);
+        }
 
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, Self::child_cleanup);
@@ -1047,6 +1069,14 @@ impl Qemu {
 
         if let Err(e) = self.setup_vm(&qga) {
             let _ = self.updates.send(Output::SetupEnd(Err(e)));
+            return;
+        }
+
+        // At this stage qemu should be prompting us with a shell prompt if running
+        // in interactive mode.
+        // Once the child has returned, we are done and can exit.
+        if self.interactive() {
+            child.wait().expect("command wasn't running");
             return;
         }
 

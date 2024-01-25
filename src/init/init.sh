@@ -31,7 +31,7 @@ log() {
 # procfs at guest /proc.
 /bin/mount -t proc -o nosuid,nodev,noexec proc /proc
 
-# So the kernel doesn't panic when if we exit
+# So the kernel doesn't panic when we exit
 trap 'poweroff -f' EXIT
 
 umask 022
@@ -101,5 +101,11 @@ if [[ -e /dev/kmsg ]]; then
     qga_logs="--logfile /dev/kmsg"
 fi
 
-log "Spawning qemu-ga"
-qemu-ga --method=virtio-serial --path="$vport" $qga_logs
+log "Spawning qemu-ga in the background"
+qemu-ga --method=virtio-serial --path="$vport" $qga_logs -d
+
+
+# Run a login shell
+# In non-interactive mode, init will block on the shell process. The VM will be killed through QMP.
+# In interactive mode, the user will be given a prompt, exiting the shell will trigger the trap function.
+/bin/bash --login

@@ -643,7 +643,7 @@ impl Qemu {
                 target.rootfs.as_path(),
                 "root",
                 ROOTFS_9P_FS_MOUNT_TAG,
-                false,
+                true,
             ));
             c.args(kernel_args(
                 &kernel,

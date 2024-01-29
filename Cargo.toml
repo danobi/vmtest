@@ -28,5 +28,6 @@ tinytemplate = "1.2.1"
 toml = "0.5.9"
 
 [dev-dependencies]
-test-log = "0.2.11"
+rexpect = "0.5"
 rstest = "0.18.2"
+test-log = "0.2.11"

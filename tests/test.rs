@@ -4,7 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::mpsc::channel;
 
-use tempfile::tempdir_in;
+use rexpect;
+use tempfile::{tempdir, tempdir_in};
 use test_log::test;
 
 use vmtest::output::Output;
@@ -215,6 +216,41 @@ fn test_command_runs_in_shell() {
     let result_path = dir.path().join("result");
     let result = fs::read_to_string(result_path).expect("Failed to read result");
     assert_eq!(result, "bash");
+}
+
+// Validate that we can run an interactive shell when passing `-` as the command.
+// We need to sleep a bit before sending our command as it takes a bit of time
+// for the shared directory to be mounted by QGA.
+#[test]
+fn test_interactive_shell() {
+    let dir = tempdir().expect("Failed to create tempdir");
+    assert!(env::set_current_dir(dir.path()).is_ok());
+    let vmtest_bin_path = Path::new(env!("CARGO_BIN_EXE_vmtest"));
+    let command = format!(
+        "{} --kernel {} -",
+        vmtest_bin_path
+            .to_str()
+            .expect("Failed to convert vmtest path to str"),
+        asset("bzImage-v5.15-empty").to_str().unwrap(),
+    );
+    let mut p = rexpect::spawn(&command, Some(30000)).expect("Failed to spawn vmtest");
+    p.exp_regex(".*root@.*#.*")
+        .expect("Did not get shell prompt");
+    // sleep 10 seconds to give a chance to set up shared directory with qga.
+    p.send_line("sleep 10")
+        .expect("Failed to send sleep command");
+
+    p.send_line("echo \"hello world\" > /mnt/vmtest/result")
+        .expect("Failed to send echo command");
+    p.exp_regex(".*root@.*#.*")
+        .expect("Did not get shell prompt after sending command.");
+    p.send_line("exit").expect("Failed to send exit command.");
+    p.exp_eof().expect("vmtest did not return EOF");
+
+    // Check that output file contains "hello world"
+    let result_path = dir.path().join("result");
+    let result = fs::read_to_string(result_path).expect("Failed to read result");
+    assert_eq!(result, "hello world\n");
 }
 
 // Tests that for kernel targets, environment variables from the host are propagated

@@ -103,6 +103,14 @@ $ vmtest -k ./kernels/Image-arm64 -r ./rootfs/ubuntu-lunar-arm64 -a aarch64 "una
 6.6.0-rc5-ga4a0c99f10ca-dirty
 ```
 
+It is also possible to get an interactive shell prompt in the guest by using the command `-`:
+```
+vmtest -k ./bzImage-v6.2 "-"
+...
+...
+root@(none):/#
+```
+
 See `vmtest --help` for all options and flags.
 
 ### Config file interface

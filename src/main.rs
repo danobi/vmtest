@@ -38,6 +38,7 @@ struct Args {
     /// Arch to run
     #[clap(short, long, default_value = ARCH, conflicts_with = "config")]
     arch: String,
+    /// Command to run in kernel mode. `-` to get an interactive shell.
     #[clap(conflicts_with = "config")]
     command: Vec<String>,
 }

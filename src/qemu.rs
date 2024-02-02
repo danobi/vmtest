@@ -37,7 +37,7 @@ const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
 const COMMAND_OUTPUT_PORT_NAME: &str = "org.qemu.virtio_serial.0";
 
 const SHARED_9P_FS_MOUNT_PATH: &str = "/mnt/vmtest";
-const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=loose,msize=1048576";
+const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=mmap,msize=1048576";
 const OVMF_PATHS: &[&str] = &[
     // Fedora
     "/usr/share/edk2/ovmf/OVMF_CODE.fd",

@@ -20,6 +20,4 @@ The second big idea is that we use 9p filesystems to share host filesystem
 inside the guest. This is useful so that vmtest targets can import/export data
 in bulk without having to specify what to copy. In a kernel target, vmtest
 exports two volumes: `/mnt/vmtest` and the root filesystem. The latter export
-effectively gives the guest VM the same userspace environment as the host,
-except we mount it read-only so the guest cannot do too much damage to the
-host.
+effectively gives the guest VM the same userspace environment as the host.

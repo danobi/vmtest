@@ -108,4 +108,6 @@ qemu-ga --method=virtio-serial --path="$vport" $qga_logs -d
 # Run a login shell
 # In non-interactive mode, init will block on the shell process. The VM will be killed through QMP.
 # In interactive mode, the user will be given a prompt, exiting the shell will trigger the trap function.
-/bin/bash --login
+# We use `setsid` to make stdin a controlling tty and create a new session.
+# https://stackoverflow.com/a/77840840
+setsid --ctty --wait /bin/bash --login

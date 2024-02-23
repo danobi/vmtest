@@ -627,7 +627,7 @@ impl Qemu {
 
         c.args(QEMU_DEFAULT_ARGS)
             .arg("-serial")
-            .arg("stdio")
+            .arg("mon:stdio")
             .args(kvm_args(&target.arch))
             .args(machine_args(&target.arch))
             .args(machine_protocol_args(&qmp_sock))

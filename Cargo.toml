@@ -10,24 +10,24 @@ license = "Apache-2.0"
 rust-version = "1.70.0"
 
 [dependencies]
-anyhow = "1.0.66"
-clap = { version = "4.0.26", features = ["derive", "string"] }
-console = "0.15.5"
-env_logger = "0.10.0"
-itertools = "0.10.5"
-lazy_static = "1.4.0"
-log = "0.4.17"
-qapi = { version = "0.14.0", features = ["qmp", "qga"] }
-rand = "0.8.5"
-regex = "1.7.1"
-scopeguard = "1.1.0"
-serde = "1.0.147"
-serde_derive = "1.0.147"
-tempfile = "3.5.0"
-tinytemplate = "1.2.1"
-toml = "0.5.9"
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive", "string"] }
+console = "0.15"
+env_logger = "0.10"
+itertools = "0.10"
+lazy_static = "1.4"
+log = "0.4"
+qapi = { version = "0.14", features = ["qmp", "qga"] }
+rand = "0.8"
+regex = "1.7"
+scopeguard = "1.1"
+serde = "1.0"
+serde_derive = "1.0"
+tempfile = "3.5"
+tinytemplate = "1.2"
+toml = "0.5"
 
 [dev-dependencies]
 rexpect = "0.5"
-rstest = "0.18.2"
-test-log = "0.2.11"
+rstest = "0.18"
+test-log = "0.2"

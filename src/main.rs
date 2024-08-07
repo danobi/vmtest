@@ -1,12 +1,12 @@
 use std::env;
 use std::env::consts::ARCH;
 use std::fs;
+use std::io::{stdout, IsTerminal as _};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use console::user_attended;
 use env_logger::{fmt::Target as LogTarget, Builder};
 use regex::Regex;
 
@@ -50,7 +50,7 @@ struct Args {
 /// the console manipulations from the UI. If not a terminal, simply print
 /// to terminal and the logs will be inlined correctly.
 fn init_logging() -> Result<()> {
-    let target = match user_attended() {
+    let target = match stdout().is_terminal() {
         false => LogTarget::Stderr,
         true => {
             let file = fs::OpenOptions::new()

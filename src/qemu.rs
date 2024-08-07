@@ -65,7 +65,10 @@ pub struct Qemu {
     rootfs: PathBuf,
     arch: String,
     mounts: HashMap<String, Mount>,
-    _init: NamedTempFile,
+    /// A reference to the temporary file representing the init script.
+    ///
+    /// This object will be cleared as part of the `run` invocation.
+    init: Option<NamedTempFile>,
     updates: Sender<Output>,
     /// Whether or not we are running an image target
     image: bool,
@@ -687,7 +690,7 @@ impl Qemu {
             rootfs: target.rootfs.clone(),
             arch: target.arch.clone(),
             mounts: target.vm.mounts.clone(),
-            _init: init,
+            init: Some(init),
             updates,
             image: target.image.is_some(),
         };
@@ -1070,6 +1073,12 @@ impl Qemu {
             return;
         }
 
+        // We can safely remove our init script temporary file at this
+        // point and stop relying on destructor based clean up. Doing so
+        // prevents leakage of the file in case Qemu hangs and has to be
+        // killed forcefully or is just exited early via Ctrl-C.
+        drop(self.init.take());
+
         // At this stage qemu should be prompting us with a shell prompt if running
         // in interactive mode.
         // Once the child has returned, we are done and can exit.
@@ -1102,7 +1111,7 @@ impl Qemu {
                 Err(e) => warn!("Failed to wait on child: {}", e),
             },
             // TODO(dxu): debug why we are getting errors here
-            Err(e) => debug!("Failed to gracefull quit QEMU: {e}"),
+            Err(e) => debug!("Failed to gracefully quit QEMU: {e}"),
         }
     }
 }

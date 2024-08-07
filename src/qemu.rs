@@ -626,6 +626,7 @@ impl Qemu {
         let mut c = Command::new(format!("qemu-system-{}", target.arch));
 
         c.args(QEMU_DEFAULT_ARGS)
+            .stderr(Stdio::piped())
             .arg("-serial")
             .arg("mon:stdio")
             .args(kvm_args(&target.arch))
@@ -696,10 +697,7 @@ impl Qemu {
         // the standard streams of the parent. This is not what we want
         // when running in non-interactive mode.
         if !qemu.interactive() {
-            qemu.process
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped());
+            qemu.process.stdin(Stdio::null()).stdout(Stdio::piped());
         }
         Ok(qemu)
     }
@@ -942,7 +940,7 @@ impl Qemu {
     fn extract_child_stderr(child: &mut Child) -> String {
         let mut err = String::new();
 
-        // unwrap() should never fail b/c we are capturing stdout
+        // unwrap() should never fail b/c we are capturing stderr
         let mut stderr = child.stderr.take().unwrap();
         if let Err(e) = stderr.read_to_string(&mut err) {
             err += &format!("<failed to read child stderr: {}>", e);

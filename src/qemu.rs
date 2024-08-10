@@ -943,9 +943,11 @@ impl Qemu {
     fn extract_child_stderr(child: &mut Child) -> String {
         let mut err = String::new();
 
-        // unwrap() should never fail b/c we are capturing stderr
-        let mut stderr = child.stderr.take().unwrap();
-        if let Err(e) = stderr.read_to_string(&mut err) {
+        let stderr = child.stderr.take();
+        if stderr.is_none() {
+            return "<no stderr>".to_string();
+        }
+        if let Err(e) = stderr.unwrap().read_to_string(&mut err) {
             err += &format!("<failed to read child stderr: {}>", e);
         }
 

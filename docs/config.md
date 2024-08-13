@@ -90,3 +90,16 @@ The Mount struct for defining additional host mounts into the VM.
     * Optional field
     * Whether this mount is writable in the VM.
     * Default: false
+
+# Examples
+
+Mount host tmpfs inside guest with read/write permissions:
+
+```toml
+[[target]]
+name = "test"
+kernel = "/home/dlxu/scratch/bzImage-v6.6-empty"
+command = "ls -l /tmp/hosttmp"
+[target.vm.mounts]
+"/tmp/hosttmp" = { host_path = "/tmp", writable = true }
+```

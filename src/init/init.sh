@@ -53,9 +53,6 @@ if [[ ! -d /dev/shm ]]; then
     mount -t tmpfs -o nosuid,nodev tmpfs /dev/shm
 fi
 
-log "Mounting tmpfs at /tmp"
-mount -t tmpfs -o nosuid,nodev tmpfs /tmp
-
 log "Mounting tmpfs at /run"
 mount -t tmpfs -o nosuid,nodev tmpfs /run
 ln -s /var/run ../run

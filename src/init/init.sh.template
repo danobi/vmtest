@@ -15,9 +15,9 @@
 
 set -eu
 
-export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH={ path }
 
-log() {
+log() \{
     if [[ -e /dev/kmsg ]]; then
 	echo "<6>vmtest: $*" >/dev/kmsg
     else
@@ -83,14 +83,14 @@ vport=
 for dir in /sys/class/virtio-ports/*; do
     if [[ "$(cat "$dir/name")" == "org.qemu.guest_agent.0" ]]; then
         vport_name=$(basename "$dir")
-        vport="/dev/${vport_name}"
+        vport="/dev/$\{vport_name}"
     fi
 done
 if [[ -z "$vport" ]]; then
     log "Failed to locate qemu-guest-agent virtio-port"
     exit 1
 fi
-log "Located qemu-guest-agent virtio port: ${vport}"
+log "Located qemu-guest-agent virtio port: $\{vport}"
 
 # Send QGA logs out via kmsg if possible
 qga_logs=

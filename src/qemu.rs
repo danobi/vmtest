@@ -29,7 +29,7 @@ use crate::output::Output;
 use crate::qga::QgaWrapper;
 use crate::{Mount, Target, VMConfig};
 
-const INIT_SCRIPT: &str = include_str!("init/init.sh");
+const INIT_TEMPLATE: &str = include_str!("init/init.sh.template");
 const COMMAND_TEMPLATE: &str = include_str!("init/command.template");
 // Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
 const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
@@ -87,7 +87,31 @@ struct CommandContext {
     command_output_port_name: String,
 }
 
+/// Used by templating engine to render init.sh
+#[derive(Serialize)]
+struct InitContext {
+    /// $PATH the guest should use
+    path: String,
+}
+
 const QEMU_DEFAULT_ARGS: &[&str] = &["-nodefaults", "-display", "none"];
+
+/// Gets instance of template engine
+///
+/// Unfortunately cannot be done as a lazy_static or OnceCell b/c TinyTemplate
+/// internally uses some !Sync stuff.
+fn get_templates() -> TinyTemplate<'static> {
+    // Disable HTML escaping (b/c we're not dealing with HTML)
+    let mut tt = TinyTemplate::new();
+    tt.set_default_formatter(&format_unescaped);
+
+    // We are ok panicing here b/c there should never be a runtime
+    // error compiling the template. Any errors are trivial bugs.
+    tt.add_template("cmd", COMMAND_TEMPLATE).unwrap();
+    tt.add_template("init", INIT_TEMPLATE).unwrap();
+
+    tt
+}
 
 /// Whether or not the host supports KVM
 fn host_supports_kvm(arch: &str) -> bool {
@@ -134,6 +158,18 @@ fn guest_init_path(guest_temp_dir: PathBuf, host_init_path: PathBuf) -> Result<P
     Ok(guest_init_path)
 }
 
+/// Generates init.sh that guest will use as pid 1
+fn init_script() -> String {
+    let path = match env::var("PATH") {
+        Ok(p) => p,
+        Err(_) => "/bin:/sbin:/usr/bin:/usr/sbin".to_string(),
+    };
+
+    // Ignore errors cuz only trivial bugs are possible
+    let context = InitContext { path };
+    get_templates().render("init", &context).unwrap()
+}
+
 // Given a rootfs, generate a tempfile with the init script inside.
 // Returns the tempfile and the path to the init script inside the guest.
 // When rootfs is /, both the tempfile filename and guest init path are equal.
@@ -152,7 +188,7 @@ fn gen_init(rootfs: &Path) -> Result<(NamedTempFile, PathBuf)> {
         .context("Failed to create tempfile")?;
 
     host_init
-        .write_all(INIT_SCRIPT.as_bytes())
+        .write_all(init_script().as_bytes())
         .context("Failed to write init to tmpfs")?;
 
     // Set write bits on script
@@ -743,14 +779,6 @@ impl Qemu {
 
     /// Generates a bash script that runs `self.command`
     fn command_script(&self) -> String {
-        // Disable HTML escaping (b/c we're not dealing with HTML)
-        let mut tt = TinyTemplate::new();
-        tt.set_default_formatter(&format_unescaped);
-
-        // We are ok panicing here b/c there should never be a runtime
-        // error compiling the template. Any errors are trivial bugs.
-        tt.add_template("cmd", COMMAND_TEMPLATE).unwrap();
-
         let context = CommandContext {
             // Only `cd` for kernel targets that share userspace with host
             should_cd: !self.image && self.rootfs == Target::default_rootfs(),
@@ -759,8 +787,8 @@ impl Qemu {
             command_output_port_name: COMMAND_OUTPUT_PORT_NAME.into(),
         };
 
-        // Same as above, ignore errors cuz only trivial bugs are possible
-        tt.render("cmd", &context).unwrap()
+        // Ignore errors cuz only trivial bugs are possible
+        get_templates().render("cmd", &context).unwrap()
     }
 
     /// Run this target's command inside the VM

@@ -120,14 +120,9 @@ fn host_supports_kvm(arch: &str) -> bool {
 
 // Generate a path to a randomly named socket
 fn gen_sock(prefix: &str) -> PathBuf {
-    let mut path = PathBuf::new();
-    path.push("/tmp");
-
     let id = rand::thread_rng().gen_range(100_000..1_000_000);
     let sock = format!("/tmp/{prefix}-{id}.sock");
-    path.push(sock);
-
-    path
+    PathBuf::from(sock)
 }
 
 // Given a guest temp dir and a host init path, generate the path to the init file

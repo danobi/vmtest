@@ -1,5 +1,5 @@
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::Path;
 use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -55,7 +55,7 @@ impl QgaWrapper {
     ///
     /// `sock` is the path to the QGA socket.
     /// `has_kvm` whether or not host supports KVM
-    pub fn new(sock: PathBuf, has_kvm: bool) -> Result<Self> {
+    pub fn new(sock: &Path, has_kvm: bool) -> Result<Self> {
         let timeout = if has_kvm {
             KVM_TIMEOUT
         } else {
@@ -69,7 +69,7 @@ impl QgaWrapper {
         while Instant::now() < end {
             info!("Connecting to QGA ({i})");
             i += 1;
-            let qga_stream = match UnixStream::connect(&sock) {
+            let qga_stream = match UnixStream::connect(sock) {
                 Ok(s) => s,
                 Err(e) => {
                     error!("Failed to connect QGA, retrying: {}", e);

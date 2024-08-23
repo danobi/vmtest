@@ -669,12 +669,12 @@ impl Qemu {
             .args(guest_agent_args(&qga_sock))
             .args(virtio_serial_args(&command_sock));
         // Always ensure the rootfs is first.
-        if let Some(image) = target.image.clone() {
-            c.args(drive_args(&image, 1));
+        if let Some(image) = &target.image {
+            c.args(drive_args(image, 1));
             if target.uefi {
                 c.args(uefi_firmware_args(target.vm.bios.as_deref()));
             }
-        } else if let Some(kernel) = target.kernel.clone() {
+        } else if let Some(kernel) = &target.kernel {
             c.args(plan9_fs_args(
                 target.rootfs.as_path(),
                 "root",
@@ -682,7 +682,7 @@ impl Qemu {
                 false,
             ));
             c.args(kernel_args(
-                &kernel,
+                kernel,
                 &target.arch,
                 guest_init.as_path(),
                 target.kernel_args.as_ref(),
@@ -1038,7 +1038,7 @@ impl Qemu {
         debug!("QMP info: {:#?}", qmp_info);
 
         // Connect to QGA socket
-        let qga = QgaWrapper::new(self.qga_sock.clone(), host_supports_kvm(&self.arch));
+        let qga = QgaWrapper::new(&self.qga_sock, host_supports_kvm(&self.arch));
         let qga = match qga {
             Ok(q) => q,
             Err(e) => {

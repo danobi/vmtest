@@ -1,10 +1,6 @@
 ARG ALPINE_VERSION
 FROM alpine:${ALPINE_VERSION}
 
-ARG KERNEL_REPO=https://github.com/torvalds/linux.git
-ARG KERNEL_TAG
-ARG DISTRO
-
 RUN apk update && apk add \
   bash \
   bison \
@@ -25,6 +21,10 @@ RUN apk update && apk add \
   zstd
 
 WORKDIR /
+
+ARG KERNEL_REPO=https://github.com/torvalds/linux.git
+ARG KERNEL_TAG
+ARG DISTRO
 
 RUN git clone --depth 1 ${KERNEL_REPO} linux --branch ${KERNEL_TAG}
 WORKDIR linux

@@ -428,7 +428,7 @@ fn kernel_args(
 fn virtio_serial_args(host_sock: &Path) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
 
-    args.push("--device".into());
+    args.push("-device".into());
     args.push("virtio-serial".into());
 
     args.push("-chardev".into());
@@ -438,7 +438,7 @@ fn virtio_serial_args(host_sock: &Path) -> Vec<OsString> {
     arg.push(",server=on,wait=off,id=cmdout");
     args.push(arg);
 
-    args.push("--device".into());
+    args.push("-device".into());
     arg = OsString::new();
     arg.push("virtserialport,chardev=cmdout,name=");
     arg.push(COMMAND_OUTPUT_PORT_NAME);

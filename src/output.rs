@@ -10,6 +10,11 @@ use anyhow::Result;
 /// Receivers should treat failures as terminal and not expect any more
 /// updates.
 pub enum Output {
+    /// On-host initialization starts
+    InitializeStart,
+    /// Initialization finished with provided with provided result
+    InitializeEnd(Result<()>),
+
     /// VM boot begins
     BootStart,
     /// Output related to VM boot

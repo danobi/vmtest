@@ -26,25 +26,26 @@ The following are required dependencies, grouped by location:
 
 Host machine:
 
-* [`qemu`](https://pkgs.org/download/qemu)
+* [`qemu`](https://pkgs.org/download/qemu) (version 5.9 or higher)
 * [`qemu-guest-agent`](https://pkgs.org/search/?q=qemu-guest-agent)
 * [`OVMF`](https://pkgs.org/download/ovmf)
+* libcap-ng
+* libseccomp
 
 Virtual machine image:
 
 * `qemu-guest-agent`
-* Kernel 9p filesystem support, either compiled in or as modules (see kernel
+* Kernel `virtiofs` support, either compiled in or as modules (see kernel
   dependencies)
     * Most (if not all) distros already ship support as modules or better
 
-Kernel:
+Kernel (version 5.4 or higher):
 
 * `CONFIG_VIRTIO=y`
 * `CONFIG_VIRTIO_PCI=y`
 * `CONFIG_VIRTIO_CONSOLE=y`
-* `CONFIG_NET_9P=y`
-* `CONFIG_NET_9P_VIRTIO=y`
-* `CONFIG_9P_FS=y`
+* `CONFIG_FUSE_FS=y`
+* `CONFIG_VIRTIO_FS=y`
 
 Note the virtual machine image dependencies are only required if you're using
 the `image` target parameter. Likewise, the same applies for kernel

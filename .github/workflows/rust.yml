@@ -29,14 +29,14 @@ jobs:
         override: true
         components: rustfmt, clippy
 
-    - name: Build
-      run: make
-
     - name: Install test deps
       run: |
         sudo apt-get update
         # Virtualization deps
-        sudo apt-get install -y qemu-system-x86-64 qemu-guest-agent qemu-utils ovmf
+        sudo apt-get install -y qemu-system-x86-64 qemu-guest-agent qemu-utils ovmf libcap-ng-dev libseccomp-dev
+
+    - name: Build
+      run: make
 
     - name: Cache test assets
       uses: actions/cache@v3

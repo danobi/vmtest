@@ -27,18 +27,17 @@ use tinytemplate::{format_unescaped, TinyTemplate};
 use crate::output::Output;
 use crate::qga::QgaWrapper;
 use crate::util::gen_sock;
+use crate::virtiofsd::Virtiofsd;
 use crate::{Mount, Target, VMConfig};
 
 const INIT_TEMPLATE: &str = include_str!("init/init.sh.template");
 const COMMAND_TEMPLATE: &str = include_str!("init/command.template");
-// Needs to be `/dev/root` for kernel to "find" the 9pfs as rootfs
-const ROOTFS_9P_FS_MOUNT_TAG: &str = "/dev/root";
-const SHARED_9P_FS_MOUNT_TAG: &str = "vmtest-shared";
+const ROOT_FS_MOUNT_TAG: &str = "rootfs";
+const SHARED_FS_MOUNT_TAG: &str = "vmtest-shared";
 const COMMAND_OUTPUT_PORT_NAME: &str = "org.qemu.virtio_serial.0";
 const MAGIC_INTERACTIVE_COMMAND: &str = "-";
 
-const SHARED_9P_FS_MOUNT_PATH: &str = "/mnt/vmtest";
-const MOUNT_OPTS_9P_FS: &str = "trans=virtio,cache=mmap,msize=1048576";
+const SHARED_FS_MOUNT_PATH: &str = "/mnt/vmtest";
 const OVMF_PATHS: &[&str] = &[
     // Fedora
     "/usr/share/edk2/ovmf/OVMF_CODE.fd",
@@ -55,6 +54,8 @@ type QmpUnixStream = qapi::Stream<BufReader<UnixStream>, UnixStream>;
 /// Represents a single QEMU instance
 pub struct Qemu {
     process: Command,
+    /// `virtiofsd` instances for each of the mounts in use.
+    virtiofsds: Vec<Virtiofsd>,
     qga_sock: PathBuf,
     qmp_sock: PathBuf,
     command: String,
@@ -241,6 +242,26 @@ fn guest_agent_args(sock: &Path) -> Vec<OsString> {
     args
 }
 
+/// Generate general arguments necessary for working with `virtiofs`.
+fn virtiofs_general_args(vm: &VMConfig) -> Vec<OsString> {
+    let mut args: Vec<OsString> = Vec::new();
+
+    args.push("-object".into());
+    // virtiofs requires the VM's memory size as a dedicated argument
+    // when using shared memory for host file accesses.
+    args.push(
+        format!(
+            "memory-backend-memfd,id=mem,share=on,size={}",
+            vm.memory.as_str()
+        )
+        .into(),
+    );
+    args.push("-numa".into());
+    args.push("node,memdev=mem".into());
+
+    args
+}
+
 /// Generate arguments for full KVM virtualization if host supports it
 fn kvm_args(arch: &str) -> Vec<&'static str> {
     let mut args = Vec::new();
@@ -291,30 +312,17 @@ fn machine_protocol_args(sock: &Path) -> Vec<OsString> {
     args
 }
 
-/// Generate arguments for setting up 9p FS server on host
+/// Generate per-file-system arguments necessary for working with `virtiofs`.
 ///
-/// `id` is the ID for the FS export (currently unused AFAICT)
+/// `id` is the ID for the FS export
 /// `mount_tag` is used inside guest to find the export
-fn plan9_fs_args(host_shared: &Path, id: &str, mount_tag: &str, ro: bool) -> Vec<OsString> {
+fn virtiofs_per_fs_args(virtiofsd: &Virtiofsd, id: &str, mount_tag: &str) -> Vec<OsString> {
     let mut args: Vec<OsString> = Vec::new();
 
-    args.push("-virtfs".into());
-
-    let mut arg = OsString::new();
-    arg.push(format!("local,id={id},path="));
-    arg.push(if host_shared.as_os_str().is_empty() {
-        // This case occurs when the config file path is just "vmtest.toml"
-        Path::new(".")
-    } else {
-        host_shared
-    });
-    arg.push(format!(
-        ",mount_tag={mount_tag},security_model=none,multidevs=remap"
-    ));
-    if ro {
-        arg.push(",readonly=on")
-    }
-    args.push(arg);
+    args.push("-chardev".into());
+    args.push(format!("socket,id={id},path={}", virtiofsd.socket_path().display()).into());
+    args.push("-device".into());
+    args.push(format!("vhost-user-fs-pci,queue-size=1024,chardev={id},tag={mount_tag}").into());
 
     args
 }
@@ -371,9 +379,9 @@ fn kernel_args(
     // The guest kernel command line args
     let mut cmdline: Vec<OsString> = Vec::new();
 
-    // Tell kernel the rootfs is 9p
-    cmdline.push("rootfstype=9p".into());
-    cmdline.push(format!("rootflags={}", MOUNT_OPTS_9P_FS).into());
+    // Tell kernel the rootfs is on a virtiofs and what "tag" it uses.
+    cmdline.push("rootfstype=virtiofs".into());
+    cmdline.push(format!("root={ROOT_FS_MOUNT_TAG}").into());
 
     // Mount rootfs readable/writable to make experience more smooth.
     // Lots of tools expect to be able to write logs or change global
@@ -454,16 +462,6 @@ fn vmconfig_args(vm: &VMConfig) -> Vec<OsString> {
         "-m".into(),
         vm.memory.clone().into(),
     ];
-
-    for mount in vm.mounts.values() {
-        let name = format!("mount{}", hash(&mount.host_path));
-        args.append(&mut plan9_fs_args(
-            &mount.host_path,
-            &name,
-            &name,
-            !mount.writable,
-        ));
-    }
 
     let mut extra_args = vm
         .extra_args
@@ -650,6 +648,7 @@ impl Qemu {
         let command_sock = gen_sock("cmdout");
         let (init, guest_init) = gen_init(&target.rootfs).context("Failed to generate init")?;
 
+        let mut virtiofsds = Vec::new();
         let mut c = Command::new(format!("qemu-system-{}", target.arch));
 
         c.args(QEMU_DEFAULT_ARGS)
@@ -660,6 +659,7 @@ impl Qemu {
             .args(machine_args(&target.arch))
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
+            .args(virtiofs_general_args(&target.vm))
             .args(virtio_serial_args(&command_sock));
         // Always ensure the rootfs is first.
         if let Some(image) = &target.image {
@@ -668,28 +668,34 @@ impl Qemu {
                 c.args(uefi_firmware_args(target.vm.bios.as_deref()));
             }
         } else if let Some(kernel) = &target.kernel {
-            c.args(plan9_fs_args(
-                target.rootfs.as_path(),
-                "root",
-                ROOTFS_9P_FS_MOUNT_TAG,
-                false,
-            ));
+            let virtiofsd = Virtiofsd::new(target.rootfs.as_path())?;
+            c.args(virtiofs_per_fs_args(&virtiofsd, "root", ROOT_FS_MOUNT_TAG));
             c.args(kernel_args(
                 kernel,
                 &target.arch,
                 guest_init.as_path(),
                 target.kernel_args.as_ref(),
             ));
+            virtiofsds.push(virtiofsd);
         } else {
             panic!("Config validation should've enforced XOR");
         }
+
         // Now add the shared mount and other extra mounts.
-        c.args(plan9_fs_args(
-            host_shared,
+        let virtiofsd = Virtiofsd::new(host_shared)?;
+        c.args(virtiofs_per_fs_args(
+            &virtiofsd,
             "shared",
-            SHARED_9P_FS_MOUNT_TAG,
-            false,
+            SHARED_FS_MOUNT_TAG,
         ));
+        virtiofsds.push(virtiofsd);
+
+        for mount in target.vm.mounts.values() {
+            let name = format!("mount{}", hash(&mount.host_path));
+            let virtiofsd = Virtiofsd::new(&mount.host_path)?;
+            c.args(virtiofs_per_fs_args(&virtiofsd, &name, &name));
+            virtiofsds.push(virtiofsd);
+        }
         c.args(vmconfig_args(&target.vm));
 
         if log_enabled!(Level::Error) {
@@ -706,6 +712,7 @@ impl Qemu {
 
         let mut qemu = Self {
             process: c,
+            virtiofsds,
             qga_sock,
             qmp_sock,
             command: target.command,
@@ -838,19 +845,12 @@ impl Qemu {
         // We can race with VM/qemu coming up. So retry a few times with growing backoff.
         let mut rc = 0;
         for i in 0..5 {
-            let mount_opts = if ro {
-                format!("{},ro", MOUNT_OPTS_9P_FS)
-            } else {
-                MOUNT_OPTS_9P_FS.into()
-            };
-            rc = run_in_vm(
-                qga,
-                &output_fn,
-                "mount",
-                &["-t", "9p", "-o", &mount_opts, mount_tag, guest_path],
-                false,
-                None,
-            )?;
+            let mut args = vec!["-t", "virtiofs", mount_tag, guest_path];
+            if ro {
+                args.push("-oro")
+            }
+
+            rc = run_in_vm(qga, &output_fn, "mount", &args, false, None)?;
 
             // Exit code 32 from mount(1) indicates mount failure.
             // We want to retry in this case.
@@ -1051,9 +1051,7 @@ impl Qemu {
     fn setup_vm(&mut self, qga: &QgaWrapper) -> Result<()> {
         // Mount shared directory inside guest
         let _ = self.updates.send(Output::SetupStart);
-        if let Err(e) =
-            self.mount_in_guest(qga, SHARED_9P_FS_MOUNT_PATH, SHARED_9P_FS_MOUNT_TAG, false)
-        {
+        if let Err(e) = self.mount_in_guest(qga, SHARED_FS_MOUNT_PATH, SHARED_FS_MOUNT_TAG, false) {
             return Err(e).context("Failed to mount shared directory in guest");
         }
         for (guest_path, mount) in &self.mounts {
@@ -1075,6 +1073,21 @@ impl Qemu {
     /// Errors and return status are reported through the `updates` channel passed into the
     /// constructor.
     pub fn run(mut self) {
+        let _ = self.updates.send(Output::InitializeStart);
+        for phase_fn in [Virtiofsd::launch, Virtiofsd::await_launched] {
+            for virtiofsd in self.virtiofsds.iter_mut() {
+                match phase_fn(virtiofsd) {
+                    Ok(()) => (),
+                    Err(e) => {
+                        let _ = self.updates.send(Output::InitializeEnd(Err(e)));
+                        return;
+                    }
+                }
+            }
+        }
+
+        let _ = self.updates.send(Output::InitializeEnd(Ok(())));
+
         // Start QEMU
         let (mut child, qga, mut qmp) = match self.boot_vm() {
             Ok((c, qga, qmp)) => (c, qga, qmp),

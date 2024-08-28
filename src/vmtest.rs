@@ -120,7 +120,7 @@ impl Vmtest {
         target.rootfs = self.resolve_path(target.rootfs.as_path());
         target.vm.bios = target.vm.bios.map(|s| self.resolve_path(s.as_path()));
 
-        Qemu::new(updates, &target, &self.base).context("Failed to setup QEMU")
+        Qemu::new(updates, target, &self.base).context("Failed to setup QEMU")
     }
 
     /// Run a single target

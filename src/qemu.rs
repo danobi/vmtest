@@ -76,15 +76,15 @@ pub struct Qemu {
 
 /// Used by templating engine to render command
 #[derive(Serialize)]
-struct CommandContext {
+struct CommandContext<'data> {
     /// True if command should change working directory before executing.
     should_cd: bool,
     /// Path to directory shared between guest/host
-    host_shared: PathBuf,
+    host_shared: &'data Path,
     /// User supplied command to run
-    command: String,
+    command: &'data str,
     /// virtio-serial output port name
-    command_output_port_name: String,
+    command_output_port_name: &'data str,
 }
 
 /// Used by templating engine to render init.sh
@@ -173,7 +173,7 @@ fn init_script() -> String {
 fn gen_init(rootfs: &Path) -> Result<(NamedTempFile, PathBuf)> {
     let guest_temp_dir = std::env::temp_dir();
     let mut host_dest_dir = rootfs.to_path_buf().into_os_string();
-    host_dest_dir.push(guest_temp_dir.clone().into_os_string());
+    host_dest_dir.push(&guest_temp_dir);
 
     let mut host_init = Builder::new()
         .prefix("vmtest-init")
@@ -651,7 +651,7 @@ impl Qemu {
     /// Construct a QEMU instance backing a vmtest target.
     ///
     /// Does not run anything yet.
-    pub fn new(updates: Sender<Output>, target: &Target, host_shared: &Path) -> Result<Self> {
+    pub fn new(updates: Sender<Output>, target: Target, host_shared: &Path) -> Result<Self> {
         let qga_sock = gen_sock("qga");
         let qmp_sock = gen_sock("qmp");
         let command_sock = gen_sock("cmdout");
@@ -715,12 +715,12 @@ impl Qemu {
             process: c,
             qga_sock,
             qmp_sock,
-            command: target.command.to_string(),
+            command: target.command,
             command_sock,
             host_shared: host_shared.to_owned(),
-            rootfs: target.rootfs.clone(),
-            arch: target.arch.clone(),
-            mounts: target.vm.mounts.clone(),
+            rootfs: target.rootfs,
+            arch: target.arch,
+            mounts: target.vm.mounts,
             init: Some(init),
             updates,
             image: target.image.is_some(),
@@ -777,9 +777,9 @@ impl Qemu {
         let context = CommandContext {
             // Only `cd` for kernel targets that share userspace with host
             should_cd: !self.image && self.rootfs == Target::default_rootfs(),
-            host_shared: self.host_shared.clone(),
-            command: self.command.clone(),
-            command_output_port_name: COMMAND_OUTPUT_PORT_NAME.into(),
+            host_shared: &self.host_shared,
+            command: &self.command,
+            command_output_port_name: COMMAND_OUTPUT_PORT_NAME,
         };
 
         // Ignore errors cuz only trivial bugs are possible

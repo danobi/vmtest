@@ -20,13 +20,13 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, log_enabled, warn, Level};
 use qapi::{qga, qmp, Qmp};
-use rand::Rng;
 use serde_derive::Serialize;
 use tempfile::{Builder, NamedTempFile};
 use tinytemplate::{format_unescaped, TinyTemplate};
 
 use crate::output::Output;
 use crate::qga::QgaWrapper;
+use crate::util::gen_sock;
 use crate::{Mount, Target, VMConfig};
 
 const INIT_TEMPLATE: &str = include_str!("init/init.sh.template");
@@ -116,13 +116,6 @@ fn get_templates() -> TinyTemplate<'static> {
 /// Whether or not the host supports KVM
 fn host_supports_kvm(arch: &str) -> bool {
     arch == ARCH && Path::new("/dev/kvm").exists()
-}
-
-// Generate a path to a randomly named socket
-fn gen_sock(prefix: &str) -> PathBuf {
-    let id = rand::thread_rng().gen_range(100_000..1_000_000);
-    let sock = format!("/tmp/{prefix}-{id}.sock");
-    PathBuf::from(sock)
 }
 
 // Given a guest temp dir and a host init path, generate the path to the init file

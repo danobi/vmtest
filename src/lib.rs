@@ -16,3 +16,4 @@ pub use crate::vmtest::*;
 
 mod qemu;
 mod qga;
+mod util;

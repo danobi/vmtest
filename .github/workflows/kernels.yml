@@ -11,6 +11,7 @@ on:
     branches: [ "master" ]
     paths:
       - 'tests/KERNELS'
+      - 'tests/kernels/**'
 
 concurrency:
   # Ensure only a single instance of this job is run at any time

@@ -9,7 +9,7 @@ set -eux
 # Start with a distro config
 cp "kernels/${1}" .config
 
-# If an empty config was provided, then we need to start with defconfig
+# If an default config was provided, then we need to start with defconfig
 # to get a sane config. Otherwise, all we need to do is default out the
 # new or unset configs.
 if [[ -s .config ]]; then

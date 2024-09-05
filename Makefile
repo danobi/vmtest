@@ -1,6 +1,6 @@
 # For images and kernels, see https://github.com/danobi/vmtest/releases/tag/test_assets for available assets.
 IMAGES := image-not-uefi.raw image-uefi.raw-efi
-KERNELS := bzImage-v5.15-empty bzImage-v6.2-empty
+KERNELS := bzImage-v5.15-default bzImage-v6.2-default
 
 ASSET_DIRECTORY := tests/.assets
 IMAGES_FILES := $(foreach image,$(IMAGES),$(ASSET_DIRECTORY)/$(image))

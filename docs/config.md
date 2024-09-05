@@ -98,7 +98,7 @@ Mount host tmpfs inside guest with read/write permissions:
 ```toml
 [[target]]
 name = "test"
-kernel = "/home/dlxu/scratch/bzImage-v6.6-empty"
+kernel = "/home/dlxu/scratch/bzImage-v6.6-default"
 command = "ls -l /tmp/hosttmp"
 [target.vm.mounts]
 "/tmp/hosttmp" = { host_path = "/tmp", writable = true }

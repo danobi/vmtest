@@ -200,7 +200,7 @@ fn test_command_runs_in_shell() {
     let config = Config {
         target: vec![Target {
             name: "command is run in shell".to_string(),
-            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel: Some(asset("bzImage-v5.15-default")),
             // `$0` is a portable way of getting the name of the shell without relying
             // on env vars which may be propagated from the host into the guest.
             command: "if true; then echo -n $0 > /mnt/vmtest/result; fi".to_string(),
@@ -231,7 +231,7 @@ fn test_interactive_shell() {
         vmtest_bin_path
             .to_str()
             .expect("Failed to convert vmtest path to str"),
-        asset("bzImage-v5.15-empty").to_str().unwrap(),
+        asset("bzImage-v5.15-default").to_str().unwrap(),
     );
     let mut p = rexpect::spawn(&command, Some(30000)).expect("Failed to spawn vmtest");
     p.exp_regex(".*root@.*#.*")
@@ -260,7 +260,7 @@ fn test_kernel_target_env_var_propagation() {
     let config = Config {
         target: vec![Target {
             name: "host env vars are propagated into guest".to_string(),
-            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel: Some(asset("bzImage-v5.15-default")),
             command: "echo -n $TEST_ENV_VAR > /mnt/vmtest/result".to_string(),
             ..Default::default()
         }],
@@ -286,7 +286,7 @@ fn test_kernel_target_cwd_preserved() {
     let config = Config {
         target: vec![Target {
             name: "host cwd preserved in guest".to_string(),
-            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel: Some(asset("bzImage-v5.15-default")),
             command: "cat text_file.txt".to_string(),
             ..Default::default()
         }],
@@ -312,7 +312,7 @@ fn test_command_process_substitution() {
     let config = Config {
         target: vec![Target {
             name: "command can run process substitution".to_string(),
-            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel: Some(asset("bzImage-v5.15-default")),
             // `$0` is a portable way of getting the name of the shell without relying
             // on env vars which may be propagated from the host into the guest.
             command: "cat <(echo -n $0) > /mnt/vmtest/result".to_string(),
@@ -359,7 +359,7 @@ fn test_kernel_ro_flag() {
     let config = Config {
         target: vec![Target {
             name: "cannot touch host rootfs with ro".to_string(),
-            kernel: Some(asset("bzImage-v5.15-empty")),
+            kernel: Some(asset("bzImage-v5.15-default")),
             kernel_args: Some("ro".to_string()),
             command: format!("touch {}/file", touch_dir.path().display()),
             ..Default::default()

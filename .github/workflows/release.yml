@@ -20,13 +20,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install required rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        target: x86_64-unknown-linux-gnu
-        override: true
-
     - name: Build statically linked vmtest
       run: |
         ./scripts/build_release.sh

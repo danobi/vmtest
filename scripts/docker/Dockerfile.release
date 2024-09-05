@@ -1,0 +1,21 @@
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  rustup \
+  libcap-ng-dev \
+  libseccomp-dev
+
+WORKDIR /build
+
+# Initialize rustup
+RUN rustup default stable
+
+# Only copy in things needed to build
+COPY ./Cargo.toml .
+COPY ./Cargo.lock .
+COPY ./src ./src
+COPY ./scripts ./scripts
+
+ENTRYPOINT ["./scripts/docker/build_release_container.sh"]

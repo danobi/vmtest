@@ -19,13 +19,17 @@ else
 fi
 
 # Apply vmtest required configs
+#
+# TODO: drop 9P configs after #88 lands.
 ./scripts/config \
 	-e VIRTIO \
 	-e VIRTIO_PCI \
 	-e VIRTIO_CONSOLE \
 	-e NET_9P \
 	-e NET_9P_VIRTIO \
-	-e 9P_FS
+	-e 9P_FS \
+	-e FUSE_FS \
+	-e VIRTIO_FS
 
 # Disable x86 insn decoder selftest. It takes way too long to run.
 ./scripts/config -d X86_DECODER_SELFTEST

@@ -1,0 +1,30 @@
+ARG IMAGE_ARCH=amd64
+FROM ${IMAGE_ARCH}/alpine:latest
+
+RUN apk add --no-cache curl libcap-ng-static libseccomp-static clang
+
+# Cargo/rust package does not install full toolchain, so use rustup.
+# Use rust from internet b/c packaged rustup only available on amd64/arm64.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+# Only copy in what's needed to build
+WORKDIR /build
+COPY Cargo.toml .
+COPY Cargo.lock .
+COPY src/ ./src
+
+# Set magic environment variables to create a static build
+ENV CC=clang
+ENV RUSTFLAGS="-C target-feature=+crt-static"
+ENV LIBSECCOMP_LIB_TYPE=static
+ENV LIBSECCOMP_LIB_PATH=/usr/lib/
+ENV LIBCAPNG_LINK_TYPE=static
+ENV LIBCAPNG_LIB_PATH=/usr/lib/
+
+# Native build
+ARG TARGET_ARCH=x86_64
+RUN /root/.cargo/bin/cargo build --release --target=${TARGET_ARCH}-unknown-linux-musl
+
+# Copy artifact to well known location
+RUN mkdir /output
+RUN cp ./target/${TARGET_ARCH}-unknown-linux-musl/release/vmtest /output/vmtest-${TARGET_ARCH}

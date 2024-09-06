@@ -14,31 +14,17 @@ then
   ARCHS=("$@")
 fi
 
-# Install the required toolchain for cross-compilation
-X_ARCHS=()
 for arch in "${ARCHS[@]}"; do
-  if [[ "${arch}" == "$(uname -m)" ]]; then
-      continue
-  fi
-  X_ARCHS+=("${arch}")
-done
+  echo "$arch" > /etc/apk/arch
+  apk add --no-cache --allow-untrusted libcap-ng-static libseccomp-static
+  rustup target add "${arch}-unknown-linux-musl"
 
-if (( ${#X_ARCHS[@]} > 0 )); then
-  apt-get update
-  for arch in "${X_ARCHS[@]}"; do
-    apt-get install -y "gcc-${arch//_/-}-linux-gnu"
-    rustup target add "${arch}-unknown-linux-gnu"
-  done
-fi
-
-
-for arch in "${ARCHS[@]}"; do
   # Tell dependencies to link statically
   export LIBCAPNG_LINK_TYPE=static
-  export LIBCAPNG_LIB_PATH="/usr/lib/${arch}-linux-gnu"
+  export LIBCAPNG_LIB_PATH="/usr/lib/"
   export LIBSECCOMP_LIB_TYPE=static
 
   # Compile the binary
-  RUSTFLAGS="-C target-feature=+crt-static -C linker=/usr/bin/${arch}-linux-gnu-gcc" cargo build --release --target "${arch}-unknown-linux-gnu"
-  cp "./target/${arch}-unknown-linux-gnu/release/vmtest" "/output/vmtest-${arch}"
+  RUSTFLAGS="-C linker=/usr/bin/ld.lld" cargo build --release --target "${arch}-unknown-linux-musl"
+  cp "./target/${arch}-unknown-linux-musl/release/vmtest" "/output/vmtest-${arch}"
 done

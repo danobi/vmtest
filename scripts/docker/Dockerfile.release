@@ -1,6 +1,7 @@
 FROM rust:alpine
 
-RUN apk add --no-cache bash clang lld
+RUN apk add --no-cache bash clang lld zig
+RUN cargo install --locked cargo-zigbuild
 
 WORKDIR /build
 

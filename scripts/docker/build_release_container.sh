@@ -23,8 +23,9 @@ for arch in "${ARCHS[@]}"; do
   export LIBCAPNG_LINK_TYPE=static
   export LIBCAPNG_LIB_PATH="/usr/lib/"
   export LIBSECCOMP_LIB_TYPE=static
+  export LIBSECCOMP_LIB_PATH="/usr/lib/"
 
   # Compile the binary
-  RUSTFLAGS="-C linker=/usr/bin/ld.lld" cargo build --release --target "${arch}-unknown-linux-musl"
+  RUSTFLAGS="-L /usr/bin" cargo zigbuild --release --target "${arch}-unknown-linux-musl"
   cp "./target/${arch}-unknown-linux-musl/release/vmtest" "/output/vmtest-${arch}"
 done

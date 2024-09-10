@@ -262,6 +262,9 @@ fn kvm_args(arch: &str) -> Vec<&'static str> {
             "aarch64" | "s390x" => {
                 args.push("max");
             }
+            "riscv64" => {
+                args.push("rv64,sscofpmf=true");
+            }
             _ => {
                 args.push("qemu64");
             }
@@ -272,15 +275,11 @@ fn kvm_args(arch: &str) -> Vec<&'static str> {
 
 /// Generate arguments for which qemu machine to use
 fn machine_args(arch: &str) -> Vec<&'static str> {
-    let mut args = Vec::new();
-
-    if arch == "aarch64" {
-        // aarch64 does not have default machines.
-        args.push("-machine");
-        args.push("virt,gic-version=3");
+    match arch {
+        "aarch64" => vec!["-machine", "virt,gic-version=3"],
+        "riscv64" => vec!["-machine", "virt"],
+        _ => vec![],
     }
-
-    args
 }
 
 /// Generate arguments for setting up QMP control socket on host

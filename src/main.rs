@@ -1,9 +1,10 @@
-use std::env;
+use std::cell::OnceCell;
 use std::env::consts::ARCH;
-use std::fs;
+use std::fs::{self, File};
 use std::io::{stdout, IsTerminal as _};
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use std::{env, io};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -43,6 +44,38 @@ struct Args {
     command: Vec<String>,
 }
 
+/// A type representing a log that creates the associated file lazily
+/// upon first write.
+#[derive(Default)]
+struct DeferredLog {
+    file: OnceCell<File>,
+}
+
+impl DeferredLog {
+    fn file(&mut self) -> &File {
+        self.file.get_or_init(|| {
+            fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(".vmtest.log")
+                // The `log` infrastructure would just swallow errors on
+                // the regular write path and so we panic here to convey
+                // any issues to users.
+                .unwrap_or_else(|err| panic!("failed to create .vmtest.log: {err}"))
+        })
+    }
+}
+
+impl io::Write for DeferredLog {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.file().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.file().flush()
+    }
+}
+
 /// Initialize logging
 ///
 /// This will send logs to a file named `.vmtest.log` if user is running
@@ -52,14 +85,7 @@ struct Args {
 fn init_logging() -> Result<()> {
     let target = match stdout().is_terminal() {
         false => LogTarget::Stderr,
-        true => {
-            let file = fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(".vmtest.log")
-                .context("Failed to open log file")?;
-            LogTarget::Pipe(Box::new(file))
-        }
+        true => LogTarget::Pipe(Box::new(DeferredLog::default())),
     };
 
     Builder::from_default_env()

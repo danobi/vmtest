@@ -177,6 +177,20 @@ impl Ui {
             };
 
             match &msg {
+                Output::InitializeStart => {
+                    stage = Stage::new(
+                        term.clone(),
+                        &heading("Initializing host environment", 2),
+                        Some(stage),
+                    );
+                    stages += 1;
+                }
+                Output::InitializeEnd(r) => {
+                    if let Err(e) = r {
+                        error_out_stage(&mut stage, e);
+                        errors += 1;
+                    }
+                }
                 Output::BootStart => {
                     stage = Stage::new(term.clone(), &heading("Booting", 2), Some(stage));
                     stages += 1;

@@ -113,7 +113,7 @@ fn test_vmtest_infra_error() {
     assert_eq!(failed, 69);
 }
 
-// Expect we can run each target one by one, sucessfully
+// Expect we can run each target one by one, successfully
 #[test]
 fn test_run_one() {
     let uefi_image = create_new_image(asset("image-uefi.raw-efi"));

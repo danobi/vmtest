@@ -110,6 +110,8 @@ pub struct Target {
     /// Arch to run
     #[serde(default = "Target::default_arch")]
     pub arch: String,
+    /// Command used to launch QEMU
+    pub qemu_command: Option<String>,
     /// Command to run inside virtual machine.
     pub command: String,
 
@@ -139,6 +141,7 @@ impl Default for Target {
             kernel_args: None,
             rootfs: Self::default_rootfs(),
             arch: Self::default_arch(),
+            qemu_command: None,
             command: "".into(),
             vm: VMConfig::default(),
         }

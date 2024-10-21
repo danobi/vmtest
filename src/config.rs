@@ -104,6 +104,7 @@ pub struct Target {
     ///
     /// * The path is relative to `vmtest.toml`.
     /// * If not specified, the host's rootfs will be used.
+    ///
     /// Default: /
     #[serde(default = "Target::default_rootfs")]
     pub rootfs: PathBuf,

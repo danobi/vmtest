@@ -19,6 +19,10 @@ clean:
 	@cargo clean
 	@rm -rf $(ASSET_DIRECTORY)
 
+.PHONY: lint
+lint:
+	@cargo clippy -- -D warnings
+
 $(ASSET_DIRECTORY):
 	@mkdir -p $@
 

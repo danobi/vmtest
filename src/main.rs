@@ -185,7 +185,7 @@ mod tests {
         let tmp_dir = test_config().expect("Failed to create config");
         let config_path = tmp_dir.path().join("vmtest.toml");
 
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "cliname",
             "-c",
             config_path.to_str().expect("Failed to create config path"),
@@ -199,7 +199,7 @@ mod tests {
         let tmp_dir = test_config().expect("Failed to create config");
         let config_path = tmp_dir.path().join("vmtest.toml");
 
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "cliname",
             "-c",
             config_path.to_str().expect("Failed to create config path"),
@@ -215,7 +215,7 @@ mod tests {
         let tmp_dir = test_config().expect("Failed to create config");
         let config_path = tmp_dir.path().join("vmtest.toml");
 
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "cliname",
             "-c",
             config_path.to_str().expect("Failed to create config path"),
@@ -230,8 +230,7 @@ mod tests {
     // Test that when using the kernel argument, the filter is not applied.
     #[test]
     fn test_config_with_kernel_ignore_filter() {
-        let args =
-            Args::parse_from(&["cliname", "-k", "mykernel", "-f", "test2", "command to run"]);
+        let args = Args::parse_from(["cliname", "-k", "mykernel", "-f", "test2", "command to run"]);
         let vmtest = config(&args).expect("Failed to parse config");
         assert_eq!(vmtest.targets().len(), 1);
         assert_eq!(vmtest.targets()[0].name, "mykernel");

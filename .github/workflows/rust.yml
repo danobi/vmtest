@@ -54,6 +54,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
         fi
 
+    - name: Run clippy
+      run: make lint
+
     - name: Run integration tests
       run: make test
 

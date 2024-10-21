@@ -16,8 +16,8 @@ use vmtest::Config;
 // Returns a path to a test asset
 pub fn asset(name: &str) -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let asset = root.join("tests/.assets").join(name);
-    asset
+
+    root.join("tests/.assets").join(name)
 }
 
 // Set up a test run

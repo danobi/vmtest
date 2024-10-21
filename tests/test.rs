@@ -4,7 +4,6 @@ use std::fs;
 use std::path::Path;
 use std::sync::mpsc::channel;
 
-use rexpect;
 use tempfile::{tempdir, tempdir_in};
 use test_log::test;
 

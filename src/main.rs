@@ -39,6 +39,11 @@ struct Args {
     /// Arch to run
     #[clap(short, long, default_value = ARCH, conflicts_with = "config")]
     arch: String,
+    /// Command to use to launch QEMU. Can be a full path or a PATH-resolved binary. If none is
+    /// provided, we default to `qemu-system-$ARCH`, where $ARCH is the value of the `arch`
+    /// argument
+    #[clap(short, long, conflicts_with = "config")]
+    qemu_command: Option<String>,
     /// Command to run in kernel mode. `-` to get an interactive shell.
     #[clap(conflicts_with = "config")]
     command: Vec<String>,
@@ -113,6 +118,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                     rootfs: args.rootfs.clone(),
                     arch: args.arch.clone(),
                     kernel_args: args.kargs.clone(),
+                    qemu_command: args.qemu_command.clone(),
                     command: args.command.join(" "),
                     vm: VMConfig::default(),
                 }],

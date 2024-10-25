@@ -980,7 +980,7 @@ impl Qemu {
     }
 
     fn verify_qemu_exists(qemu_program: &str) -> anyhow::Result<()> {
-        if let Err(e) = Command::new(&qemu_program)
+        if let Err(e) = Command::new(qemu_program)
             .arg("--help")
             .stdout(Stdio::null())
             .stderr(Stdio::null())

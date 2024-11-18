@@ -119,6 +119,9 @@ impl Vmtest {
         target.kernel = target.kernel.map(|s| self.resolve_path(s.as_path()));
         target.rootfs = self.resolve_path(target.rootfs.as_path());
         target.vm.bios = target.vm.bios.map(|s| self.resolve_path(s.as_path()));
+        target.vm.mounts.iter_mut().for_each(|(_, m)| {
+            m.host_path = self.resolve_path(m.host_path.as_path());
+        });
 
         Qemu::new(updates, target, &self.base).context("Failed to setup QEMU")
     }

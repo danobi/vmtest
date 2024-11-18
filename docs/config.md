@@ -86,6 +86,8 @@ The Mount struct for defining additional host mounts into the VM.
 * `host_path` (string)
     * Required field
     * Path on the host.
+    * If a relative path is provided, it will be interpreted as relative to
+      `vmtest.toml`
 * `writable` (bool)
     * Optional field
     * Whether this mount is writable in the VM.

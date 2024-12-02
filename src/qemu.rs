@@ -1063,7 +1063,7 @@ impl Qemu {
         debug!("QMP info: {:#?}", qmp_info);
 
         // Connect to QGA socket
-        let qga = QgaWrapper::new(&self.qga_sock, host_supports_kvm(&self.arch));
+        let qga = QgaWrapper::new(&self.qga_sock, host_supports_kvm(&self.arch), &mut child);
         let qga = match qga {
             Ok(q) => q,
             Err(e) => {

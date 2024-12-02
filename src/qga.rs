@@ -1,5 +1,6 @@
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::process::Child;
 use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -56,7 +57,8 @@ impl QgaWrapper {
     ///
     /// `sock` is the path to the QGA socket.
     /// `has_kvm` whether or not host supports KVM
-    pub fn new(sock: &Path, has_kvm: bool) -> Result<Self> {
+    /// `qemu` is the guest VM
+    pub fn new(sock: &Path, has_kvm: bool, qemu: &mut Child) -> Result<Self> {
         let timeout = if has_kvm {
             KVM_TIMEOUT
         } else {
@@ -68,6 +70,12 @@ impl QgaWrapper {
         let end = Instant::now() + timeout;
         let mut i = 0;
         while Instant::now() < end {
+            // Circuit break if guest already exited. This can happen if guest VM panics.
+            // A common example is guest kernel is not built with proper vmtest kconfig.
+            if let Ok(Some(_)) = qemu.try_wait() {
+                bail!("Qemu exited while trying to connect to QGA. Did the guest panic?");
+            }
+
             info!("Connecting to QGA ({i})");
             i += 1;
             let qga_stream = match UnixStream::connect(sock) {

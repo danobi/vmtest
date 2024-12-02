@@ -15,9 +15,10 @@ The following fields are supported:
       identification purposes.
 * `image` (string)
     * Optional field, but one of `image` and `kernel` must be specified
-    * The path to the virtual machine image
+    * The path to the virtual machine disk image
     * If a relative path is provided, it will be interpreted as relative to
       `vmtest.toml`
+    * Format is auto-detected by QEMU.
 * `uefi` (boolean)
     * Default: `false`
     * Whether to use UEFI boot or not
@@ -28,15 +29,19 @@ The following fields are supported:
     * Typically named `vmlinuz` or `bzImage`
     * If a relative path is provided, it will be interpreted as relative to
       `vmtest.toml`
+    * See the [notes in the README](../README.md#dependencies) for kernel
+      features that are required.
 * `kernel_args` (string)
     * Optional field
     * `kernel` must be specified
     * Additional kernel command line arguments to append to `vmtest` generated
       kernel arguments
 * `rootfs` (string)
-    * Default: `/`
+    * Directory, default: `/`
     * `kernel` must be specified
-    * Path to rootfs to test against
+    * Path to rootfs to test against. Will be mounted in the guest using a
+      filesystem protocol that's convenient for virtualisation, such as
+      [9p](https://docs.kernel.org/filesystems/9p.html).
     * If a relative path is provided, it will be interpreted as relative to
       `vmtest.toml`
 * `arch` (string)

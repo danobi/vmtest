@@ -1002,6 +1002,7 @@ impl Qemu {
     /// Boot the VM and connect to QGA
     ///
     /// Returns the child process and QGA wrapper on success, an error otherwise.
+    #[allow(clippy::type_complexity)]
     fn boot_vm(
         &mut self,
     ) -> Result<(

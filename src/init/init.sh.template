@@ -99,7 +99,11 @@ if [[ -e /dev/kmsg ]]; then
 fi
 
 log "Spawning qemu-ga in the background"
-qemu-ga --method=virtio-serial --path="$vport" $qga_logs -d
+# These --statedir and --pidfile match th default on typical QEMU builds, but
+# versions exist where the default is something else. See
+# https://github.com/danobi/vmtest/issues/101
+qemu-ga --statedir /var/run --pidfile /var/run/qemu-ga.pid \
+    --method=virtio-serial --path="$vport" $qga_logs -d
 
 
 # Run a login shell

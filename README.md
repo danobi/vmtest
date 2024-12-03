@@ -127,7 +127,7 @@ kernel = "./bzImage-5.15.0-1022-aws"
 command = "uname -r | grep -e aws$"
 
 [[target]]
-name = "OCI image"
+name = "Oracle image"
 image = "./oci-stage-6/oci-stage-6-disk001.qcow2"
 command = "ls -l /mnt/vmtest && cat /proc/thiswillfail"
 
@@ -139,14 +139,15 @@ rootfs = "./rootfs/ubuntu-lunar-arm64"
 command = "uname -m | grep aarch64"
 ```
 
-In the above config, two see two defined targets: "AWS kernel" and "OCI image".
+In the above config, two see two defined targets: "AWS kernel" and "Oracle
+image".
 
 In plain english, the "AWS kernel" target tells vmtest to run `command` in a VM
 with the same userspace environment as the host, except with the specified
 `kernel`.
 
-"OCI image", on the other hand, tells vmtest to run `command` inside the
-provided VM image. The image completely defines the environment `command` is
+"Oracle image", on the other hand, tells vmtest to run `command` inside the
+provided VM disk image. The image completely defines the environment `command` is
 run in with the exception of `/mnt/vmtest`. `/mnt/vmtest` (as we will see
 below) contains the full directory tree of the host machine rooted at the
 directory containing `vmtest.toml`. This directory tree is shared - **not
@@ -158,7 +159,7 @@ Running vmtest with the above config yields the following results:
 $ vmtest
 => AWS kernel
 PASS
-=> OCI image
+=> Oracle image
 ===> Booting
 ===> Setting up VM
 ===> Running command

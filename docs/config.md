@@ -44,6 +44,9 @@ The following fields are supported:
       [9p](https://docs.kernel.org/filesystems/9p.html).
     * If a relative path is provided, it will be interpreted as relative to
       `vmtest.toml`
+    * UIDs from the host will be passed through directly; if you built your
+      rootfs without privileges in the host, try running `vmtest` via
+      `unshare -r`, so that QEMU (and hence the guest) sees UID 0.
 * `arch` (string)
     * Default: the architecture vmtest was built for.
     * Under which machine architecture to run the kernel.

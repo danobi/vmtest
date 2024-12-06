@@ -47,6 +47,9 @@ The following fields are supported:
     * UIDs from the host will be passed through directly; if you built your
       rootfs without privileges in the host, try running `vmtest` via
       `unshare -r`, so that QEMU (and hence the guest) sees UID 0.
+    * For tips on creating a rootfs (if you don't want to just use your host
+      system's one), see [rootfs.md](./docs/rootfs.md).
+
 * `arch` (string)
     * Default: the architecture vmtest was built for.
     * Under which machine architecture to run the kernel.

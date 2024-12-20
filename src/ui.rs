@@ -165,8 +165,7 @@ impl Ui {
         let term = Term::stdout();
         let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
         let mut stages = 0;
-        let mut errors = 0;
-        let mut rc: i32 = 0;
+        let mut rc = Some(0);
 
         // Main state machine loop
         loop {
@@ -185,7 +184,7 @@ impl Ui {
                 Output::BootEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
-                        errors += 1;
+                        rc = None;
                     }
                 }
                 Output::SetupStart => {
@@ -196,7 +195,7 @@ impl Ui {
                 Output::SetupEnd(r) => {
                     if let Err(e) = r {
                         error_out_stage(&mut stage, e);
-                        errors += 1;
+                        rc = None;
                     }
                 }
                 Output::CommandStart => {
@@ -211,20 +210,17 @@ impl Ui {
 
                     match r {
                         Ok(retval) => {
-                            rc = *retval as i32;
-                            // Do not increment the error counter here. The VM ran successfully, the error is convyed by
-                            // the command return code.
-                            // Nevertheless, we still want to make it clear to the user by logging to the console.
                             if *retval != 0 {
                                 error_out_stage(
                                     &mut stage,
                                     &anyhow!("Command failed with exit code: {}", retval),
                                 );
                             }
+                            rc = Some(*retval as i32);
                         }
                         Err(e) => {
                             error_out_stage(&mut stage, e);
-                            errors += 1;
+                            rc = None;
                         }
                     };
                 }
@@ -234,18 +230,24 @@ impl Ui {
         // Force stage cleanup so we can do final fixup if we want
         drop(stage);
 
-        // Only clear target stages if target was successful
-        if errors == 0 && !show_cmd {
-            clear_last_lines(&term, stages);
-            term.write_line("PASS").expect("Failed to write terminal");
-        } else if !show_cmd {
-            term.write_line("FAILED").expect("Failed to write terminal");
+        match rc {
+            Some(0) => {
+                if !show_cmd {
+                    clear_last_lines(&term, stages);
+                    term.write_line("PASS").expect("Failed to write terminal");
+                }
+                Ok(0)
+            }
+            Some(rc) => {
+                if !show_cmd {
+                    term.write_line("FAILED").expect("Failed to write terminal");
+                }
+                Ok(rc)
+            }
+            None => {
+                bail!("Failed to run the target");
+            }
         }
-
-        if errors != 0 {
-            bail!("Failed to run the target");
-        }
-        Ok(rc)
     }
 
     /// Run all the targets in the provided `vmtest`
@@ -255,8 +257,10 @@ impl Ui {
     ///
     /// Note this function is "infallible" b/c on error it will display
     /// the appropriate error message to screen.
+    ///
     /// In one-liner mode, it return the return code of the command, or EX_UNAVAILABLE if there
     /// is an issue that prevents running the command.
+    ///
     /// When multiple targets are ran, it returns how many targets failed.
     pub fn run(self, show_cmd: bool) -> i32 {
         let mut failed = 0;

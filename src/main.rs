@@ -45,7 +45,6 @@ struct Args {
     #[clap(short, long, conflicts_with = "config")]
     qemu_command: Option<String>,
     /// Command to run in kernel mode. `-` to get an interactive shell.
-    #[clap(conflicts_with = "config")]
     command: Vec<String>,
 }
 
@@ -135,6 +134,13 @@ fn config(args: &Args) -> Result<Vmtest> {
                 .target
                 .into_iter()
                 .filter(|t| filter.is_match(&t.name))
+                .map(|t| {
+                    let mut t = t;
+                    if !args.command.is_empty() {
+                        t.command = args.command.join(" ");
+                    }
+                    t
+                })
                 .collect::<Vec<_>>();
             let base = config_path.parent().unwrap();
             Vmtest::new(base, config)

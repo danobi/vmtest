@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, Error};
 use console::{strip_ansi_codes, style, truncate_str, Style, Term};
 
 use crate::output::Output;
@@ -159,9 +159,9 @@ impl Ui {
 
     /// UI for a single target. Must be run on its own thread.
     ///
-    /// Returns an Error if the vm failed to run the command.
+    /// Returns None if the vm failed to run the command.
     /// Otherwise, return the return code of the command.
-    fn target_ui(updates: Receiver<Output>, target: String, show_cmd: bool) -> Result<i32> {
+    fn target_ui(updates: Receiver<Output>, target: String, show_cmd: bool) -> Option<i32> {
         let term = Term::stdout();
         let mut stage = Stage::new(term.clone(), &heading(&target, 1), None);
         let mut stages = 0;
@@ -236,18 +236,16 @@ impl Ui {
                     clear_last_lines(&term, stages);
                     term.write_line("PASS").expect("Failed to write terminal");
                 }
-                Ok(0)
             }
-            Some(rc) => {
+            Some(_) => {
                 if !show_cmd {
                     term.write_line("FAILED").expect("Failed to write terminal");
                 }
-                Ok(rc)
             }
-            None => {
-                bail!("Failed to run the target");
-            }
+            None => (),
         }
+
+        rc
     }
 
     /// Run all the targets in the provided `vmtest`
@@ -280,7 +278,7 @@ impl Ui {
             let rc = ui
                 .join()
                 .expect("Failed to join UI thread")
-                // Transform an error into a pre-baked error code that represent a failure to run the VM.
+                // Transform VM error into a pre-baked error code that represent the failure
                 .unwrap_or(EX_UNAVAILABLE);
 
             if single_cmd {

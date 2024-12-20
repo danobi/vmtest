@@ -44,8 +44,10 @@ const OVMF_PATHS: &[&str] = &[
     "/usr/share/edk2/ovmf/OVMF_CODE.fd",
     // Ubuntu
     "/usr/share/OVMF/OVMF_CODE.fd",
+    "/usr/share/ovmf/OVMF.fd",
     // Arch linux
     // TODO(dxu): parameterize by architecture
+    "/usr/share/edk2/x64/OVMF.4m.fd",
     "/usr/share/edk2-ovmf/x64/OVMF_CODE.fd",
 ];
 

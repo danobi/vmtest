@@ -146,7 +146,7 @@ fn config(args: &Args) -> Result<Vmtest> {
 ///
 /// This is useful for one-liner invocations.
 fn show_cmd(args: &Args) -> bool {
-    args.config.is_none()
+    args.kernel.is_some()
 }
 
 fn main() -> Result<()> {

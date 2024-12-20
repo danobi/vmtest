@@ -10,7 +10,7 @@ use log::{debug, error, info, warn};
 use qapi::{qga, Command as QapiCommand, Qga};
 use rand::Rng;
 
-const KVM_TIMEOUT: Duration = Duration::from_secs(60);
+const KVM_TIMEOUT: Duration = Duration::from_secs(80);
 const EMULATE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// This is a wrapper around [`Qga`] such that we can execute QGA commands

@@ -106,10 +106,22 @@ impl Stage {
             // If UI is enabled, we do custom window with our own styling.
             // Therefore, we need to strip away any existing formatting.
             let stripped = strip_ansi_codes(trimmed_line);
+
+            // Clip output to fit in terminal.
+            //
+            // Note this _does_not_ handle characters that expand to multiple columns,
+            // like tabs or other fancy unicode. This is known to corrupt UI visuals. There
+            // is no real solution to this without doing a mini terminal emulator AFAIK.
+            // The workaround is to set VMTEST_NO_UI.
+            let width = self.term.size_checked().map(|(_, w)| w).unwrap_or(u16::MAX);
+            let clipped = truncate_str(&stripped, width as usize, "...");
+
+            // Apply styling
             let styled = match &custom {
-                Some(s) => s.apply_to(stripped),
-                None => style(stripped).dim(),
+                Some(s) => s.apply_to(clipped),
+                None => style(clipped).dim(),
             };
+
             styled.to_string()
         } else {
             // If output is not attended, we do pass through
@@ -119,16 +131,9 @@ impl Stage {
         // Unwrap should never fail b/c we're sizing with `min()`
         let window = self.lines.windows(self.window_size()).last().unwrap();
 
-        // Get terminal width, if any
-        let width = match self.term.size_checked() {
-            Some((_, w)) => w,
-            _ => u16::MAX,
-        };
-
         // Print visible lines
         for line in window {
-            let clipped = truncate_str(line, width as usize - 3, "...");
-            self.term.write_line(&format!("{}", clipped)).unwrap();
+            self.term.write_line(line).unwrap();
         }
     }
 

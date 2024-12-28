@@ -91,12 +91,20 @@ impl Stage {
 
         // Compute new visible lines
         let trimmed_line = line.trim_end();
-        let stripped_line = strip_ansi_codes(trimmed_line);
-        let styled_line = match &custom {
-            Some(s) => s.apply_to(stripped_line),
-            None => style(stripped_line).dim(),
+        let styled_line = if self.term.features().is_attended() {
+            // If output is attended, we do custom window with our own styling.
+            // Therefore, we need to strip away any existing formatting.
+            let stripped = strip_ansi_codes(trimmed_line);
+            let styled = match &custom {
+                Some(s) => s.apply_to(stripped),
+                None => style(stripped).dim(),
+            };
+            styled.to_string()
+        } else {
+            // If output is not attended, we do pass through
+            trimmed_line.to_string()
         };
-        self.lines.push(styled_line.to_string());
+        self.lines.push(styled_line);
         // Unwrap should never fail b/c we're sizing with `min()`
         let window = self.lines.windows(self.window_size()).last().unwrap();
 

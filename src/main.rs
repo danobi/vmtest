@@ -13,8 +13,12 @@ use regex::Regex;
 
 use vmtest::{Config, Target, Ui, VMConfig, Vmtest};
 
+const HELP_ENV_VARS: &str = r#"Environment variables:
+  VMTEST_NO_UI    Set to disable UI  [default: unset]
+"#;
+
 #[derive(Parser, Debug)]
-#[clap(version)]
+#[clap(version, disable_colored_help=true, after_help=HELP_ENV_VARS)]
 struct Args {
     /// Path to config file
     #[clap(short, long)]

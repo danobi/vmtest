@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::env;
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 
@@ -26,9 +27,19 @@ struct Stage {
     expand: bool,
 }
 
-/// Helper to clear lines depending on whether or not a tty is attached
+/// Returns whether the "windowed" UI is enabled or not.
+/// If disabled, output is (mostly) just passed through.
+fn ui_enabled(term: &Term) -> bool {
+    if env::var_os("VMTEST_NO_UI").is_some() {
+        return false;
+    }
+
+    term.features().is_attended()
+}
+
+/// Helper to clear lines depending on whether or not UI is enabled
 fn clear_last_lines(term: &Term, n: usize) {
-    if term.features().is_attended() {
+    if ui_enabled(term) {
         term.clear_last_lines(n).unwrap();
     }
 }
@@ -68,7 +79,7 @@ impl Stage {
     /// We kinda hack this to return 1 if we're not writing to terminal.
     /// Should really find a cleaner solution.
     fn window_size(&self) -> usize {
-        if self.term.features().is_attended() {
+        if ui_enabled(&self.term) {
             min(self.lines.len(), WINDOW_LENGTH)
         } else {
             min(self.lines.len(), 1)
@@ -91,8 +102,8 @@ impl Stage {
 
         // Compute new visible lines
         let trimmed_line = line.trim_end();
-        let styled_line = if self.term.features().is_attended() {
-            // If output is attended, we do custom window with our own styling.
+        let styled_line = if ui_enabled(&self.term) {
+            // If UI is enabled, we do custom window with our own styling.
             // Therefore, we need to strip away any existing formatting.
             let stripped = strip_ansi_codes(trimmed_line);
             let styled = match &custom {
@@ -133,7 +144,7 @@ impl Stage {
 impl Drop for Stage {
     fn drop(&mut self) {
         clear_last_lines(&self.term, self.window_size());
-        if self.expand && self.term.features().is_attended() {
+        if self.expand && ui_enabled(&self.term) {
             for line in &self.lines {
                 self.term
                     .write_line(line)

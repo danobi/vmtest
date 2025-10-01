@@ -251,13 +251,17 @@ fn guest_agent_args(sock: &Path) -> Vec<OsString> {
 }
 
 /// Generate arguments for full KVM virtualization if host supports it
-fn kvm_args(arch: &str) -> Vec<&'static str> {
+fn kvm_args<'a>(arch: &str, kvm_cpu_args: &'a str) -> Vec<&'a str> {
     let mut args = Vec::new();
 
     if host_supports_kvm(arch) {
         args.push("-enable-kvm");
         args.push("-cpu");
-        args.push("host");
+        if kvm_cpu_args.is_empty() {
+            args.push("host");
+        } else {
+            args.push(kvm_cpu_args);
+        }
     } else {
         args.push("-cpu");
         match arch {
@@ -365,7 +369,7 @@ fn kernel_args(
     kernel: &Path,
     arch: &str,
     init: &Path,
-    additional_kargs: Option<&String>,
+    additional_kargs: Option<&str>,
 ) -> Vec<OsString> {
     let mut args = Vec::new();
 
@@ -669,7 +673,10 @@ impl Qemu {
             .stderr(Stdio::piped())
             .arg("-serial")
             .arg("mon:stdio")
-            .args(kvm_args(&target.arch))
+            .args(kvm_args(
+                &target.arch,
+                target.kvm_cpu_args.as_deref().unwrap_or("host"),
+            ))
             .args(machine_args(&target.arch))
             .args(machine_protocol_args(&qmp_sock))
             .args(guest_agent_args(&qga_sock))
@@ -691,7 +698,7 @@ impl Qemu {
                 kernel,
                 &target.arch,
                 guest_init.as_path(),
-                target.kernel_args.as_ref(),
+                target.kernel_args.as_deref(),
             ));
         } else {
             panic!("Config validation should've enforced XOR");

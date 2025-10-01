@@ -37,6 +37,9 @@ struct Args {
     /// Additional kernel command line arguments
     #[clap(long, conflicts_with = "config")]
     kargs: Option<String>,
+    /// KVM -cpu arguments
+    #[clap(long, conflicts_with = "config", default_value = "host")]
+    kvm_cpu_args: Option<String>,
     /// Location of rootfs, default to host's /
     #[clap(short, long, conflicts_with = "config", default_value = Target::default_rootfs().into_os_string())]
     rootfs: PathBuf,
@@ -122,6 +125,7 @@ fn config(args: &Args) -> Result<Vmtest> {
                     rootfs: args.rootfs.clone(),
                     arch: args.arch.clone(),
                     kernel_args: args.kargs.clone(),
+                    kvm_cpu_args: args.kvm_cpu_args.clone(),
                     qemu_command: args.qemu_command.clone(),
                     command: args.command.join(" "),
                     vm: VMConfig::default(),

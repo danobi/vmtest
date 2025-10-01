@@ -100,6 +100,11 @@ pub struct Target {
     ///
     /// Arguments are only valid for kernel targets.
     pub kernel_args: Option<String>,
+    /// KVM -cpu arguments are only valid for KVM enabled targets.
+    ///
+    /// Default: host
+    #[serde(default = "Target::default_kvm_cpu_args")]
+    pub kvm_cpu_args: Option<String>,
     /// Path to rootfs to test against.
     ///
     /// * The path is relative to `vmtest.toml`.
@@ -130,6 +135,10 @@ impl Target {
     pub fn default_arch() -> String {
         ARCH.to_string()
     }
+    /// Default kvm cpu args to use if none are specified.
+    pub fn default_kvm_cpu_args() -> Option<String> {
+        Some("host".into())
+    }
 }
 
 impl Default for Target {
@@ -140,6 +149,7 @@ impl Default for Target {
             uefi: false,
             kernel: None,
             kernel_args: None,
+            kvm_cpu_args: None,
             rootfs: Self::default_rootfs(),
             arch: Self::default_arch(),
             qemu_command: None,

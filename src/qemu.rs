@@ -758,11 +758,26 @@ impl Qemu {
     }
 
     /// Waits for QMP and QGA sockets to appear
-    fn wait_for_qemu(&self) -> Result<()> {
+    fn wait_for_qemu(&self, child: &mut Child) -> Result<()> {
         let now = time::Instant::now();
         let timeout = Duration::from_secs(5);
 
         while now.elapsed() < timeout {
+            // Before checking socket files, let's check if the child process fails to start.
+            match child
+                .try_wait()
+                .with_context(|| "Failed to inspect QEMU status".to_string())?
+            {
+                None => { /* QEMU is still running. */ }
+                Some(ec) => {
+                    if ec.success() {
+                        bail!("QEMU exits normally which is not expected")
+                    } else {
+                        bail!("QEMU fails to start: {}", Self::extract_child_stderr(child))
+                    }
+                }
+            }
+
             let qga_ok = self
                 .qga_sock
                 .try_exists()
@@ -1035,7 +1050,7 @@ impl Qemu {
         // Ensure child is cleaned up even if we bail early
         let mut child = scopeguard::guard(child, Self::child_cleanup);
 
-        if let Err(e) = self.wait_for_qemu() {
+        if let Err(e) = self.wait_for_qemu(&mut child) {
             return Err(e).context("Failed waiting for QEMU to be ready");
         }
 

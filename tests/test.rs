@@ -344,7 +344,7 @@ fn test_qemu_error_shown() {
     vmtest.run_one(0, send);
 
     let err = assert_get_err!(recv, Output::BootEnd);
-    let msg = err.to_string();
+    let msg = format!("{:?}", err);
     assert!(msg.contains("qemu: could not open kernel file"));
 }
 

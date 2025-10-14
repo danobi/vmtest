@@ -25,6 +25,9 @@ serde_derive = "1.0.147"
 tempfile = "3.5.0"
 tinytemplate = "1.2.1"
 toml = "0.5.9"
+vhost-user-backend = "0.17.0"
+virtiofsd = { version = "1.13.1", default-features = false, git = "https://gitlab.com/d-e-s-o/virtiofsd.git", branch = "topic/different-caps-backend" }
+vm-memory = { version = "0.16.1", features = ["backend-mmap", "backend-atomic"] }
 
 [dev-dependencies]
 rexpect = "0.5"

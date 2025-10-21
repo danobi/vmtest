@@ -67,7 +67,7 @@ log "Mounting tracefs at /sys/kernel/debug/tracing"
 mount -t tracefs tracefs /sys/kernel/debug/tracing || log "Failed to mount tracefs. CONFIG_DEBUG_FS might be missing from the kernel config"
 
 log "Mounting cgroup2 at /sys/fs/cgroup"
-mount -t cgroup2 -o nosuid,nodev,noexec cgroup2 /sys/fs/cgroup
+mount -t cgroup2 -o nosuid,nodev,noexec cgroup2 /sys/fs/cgroup || log "Failed to mount cgroups. CONFIG_CGROUPS might be missing from the kernel config"
 
 log "Mounting tmpfs at /mnt"
 mount -t tmpfs -o nosuid,nodev tmpfs /mnt

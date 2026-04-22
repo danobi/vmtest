@@ -255,18 +255,14 @@ impl Ui {
         drop(stage);
 
         match rc {
-            Some(0) => {
-                if !show_cmd {
-                    clear_last_lines(&term, stages);
-                    term.write_line("PASS").expect("Failed to write terminal");
-                }
+            Some(0) if !show_cmd => {
+                clear_last_lines(&term, stages);
+                term.write_line("PASS").expect("Failed to write terminal");
             }
-            Some(_) => {
-                if !show_cmd {
-                    term.write_line("FAILED").expect("Failed to write terminal");
-                }
+            Some(_) if !show_cmd => {
+                term.write_line("FAILED").expect("Failed to write terminal");
             }
-            None => (),
+            _ => (),
         }
 
         rc
